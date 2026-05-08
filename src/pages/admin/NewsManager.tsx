@@ -57,12 +57,10 @@ export default function NewsManager() {
   };
 
   const deletePost = async (id: string) => {
-    if (confirm('Delete this article?')) {
-      try {
-        await deleteDoc(doc(db, 'news', id));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `news/${id}`);
-      }
+    try {
+      await deleteDoc(doc(db, 'news', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `news/${id}`);
     }
   };
 

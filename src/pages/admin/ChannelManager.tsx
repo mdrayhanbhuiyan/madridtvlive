@@ -59,12 +59,10 @@ export default function ChannelManager() {
   };
 
   const deleteChannel = async (id: string) => {
-    if (confirm('Are you sure you want to delete this channel?')) {
-      try {
-        await deleteDoc(doc(db, 'channels', id));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `channels/${id}`);
-      }
+    try {
+      await deleteDoc(doc(db, 'channels', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `channels/${id}`);
     }
   };
 

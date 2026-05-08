@@ -1,8 +1,9 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Channel, Match, Highlight, NewsPost, SiteWidget, SiteAd } from '../types';
+import { Channel, Match, Highlight, NewsPost, SiteWidget, SiteAd, MatchStatus, SliderItem } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
+import { showMatchLiveNotification } from '../lib/notifications';
 
 interface DataContextType {
   channels: Channel[];
@@ -11,6 +12,7 @@ interface DataContextType {
   news: NewsPost[];
   widgets: SiteWidget[];
   ads: SiteAd[];
+  sliders: SliderItem[];
   loading: boolean;
 }
 
@@ -23,7 +25,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [news, setNews] = useState<NewsPost[]>([]);
   const [widgets, setWidgets] = useState<SiteWidget[]>([]);
   const [ads, setAds] = useState<SiteAd[]>([]);
+  const [sliders, setSliders] = useState<SliderItem[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const prevMatchStatuses = useRef<Record<string, MatchStatus>>({});
 
   useEffect(() => {
     const unsubChannels = onSnapshot(collection(db, 'channels'), (snap) => {
@@ -31,7 +36,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'channels'));
 
     const unsubMatches = onSnapshot(collection(db, 'matches'), (snap) => {
-      setMatches(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match)));
+      const newMatches = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match));
+      
+      // Check for live status changes
+      newMatches.forEach(match => {
+        const prevStatus = prevMatchStatuses.current[match.id];
+        if (prevStatus && prevStatus !== MatchStatus.LIVE && match.status === MatchStatus.LIVE) {
+          showMatchLiveNotification(match);
+        }
+        prevMatchStatuses.current[match.id] = match.status;
+      });
+
+      setMatches(newMatches);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'matches'));
 
     const unsubHighlights = onSnapshot(collection(db, 'highlights'), (snap) => {
@@ -50,6 +66,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setAds(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SiteAd)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'ads'));
 
+    const unsubSliders = onSnapshot(query(collection(db, 'sliders'), orderBy('order', 'asc')), (snap) => {
+      setSliders(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SliderItem)));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'sliders'));
+
     setLoading(false);
 
     return () => {
@@ -59,11 +79,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       unsubNews();
       unsubWidgets();
       unsubAds();
+      unsubSliders();
     };
   }, []);
 
   return (
-    <DataContext.Provider value={{ channels, matches, highlights, news, widgets, ads, loading }}>
+    <DataContext.Provider value={{ channels, matches, highlights, news, widgets, ads, sliders, loading }}>
       {children}
     </DataContext.Provider>
   );

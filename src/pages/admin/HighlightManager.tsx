@@ -49,12 +49,10 @@ export default function HighlightManager() {
   };
 
   const deleteHighlight = async (id: string) => {
-    if (confirm('Delete this highlight?')) {
-      try {
-        await deleteDoc(doc(db, 'highlights', id));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `highlights/${id}`);
-      }
+    try {
+      await deleteDoc(doc(db, 'highlights', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `highlights/${id}`);
     }
   };
 

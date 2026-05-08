@@ -2,18 +2,44 @@ import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { MatchStatus, Sport } from '../types';
-import { Trophy, Clock, Users, MessageSquare, BarChart3, ChevronLeft, Calendar } from 'lucide-react';
+import { Trophy, Clock, Users, MessageSquare, BarChart3, ChevronLeft, Calendar, BrainCircuit, Vote as VoteIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { doc, updateDoc, increment } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export default function MatchDetails() {
   const { id } = useParams<{ id: string }>();
   const { matches, loading } = useData();
-  const [activeTab, setActiveTab] = useState<'stats' | 'lineups' | 'commentary'>('commentary');
+  const [activeTab, setActiveTab] = useState<'stats' | 'lineups' | 'commentary' | 'predictor'>('predictor');
+  const [hasVoted, setHasVoted] = useState(false);
   const match = matches.find(m => m.id === id);
+
+  useEffect(() => {
+    const voted = localStorage.getItem(`voted_match_${id}`);
+    if (voted) setHasVoted(true);
+  }, [id]);
 
   if (loading) return <div className="flex-grow flex items-center justify-center bg-black"><div className="w-12 h-12 border-4 border-[#CCFF00] border-t-transparent rounded-full animate-spin" /></div>;
   if (!match) return <div className="flex-grow flex flex-col items-center justify-center bg-black text-white/40 p-20 capitalize">Match not found<Link to="/" className="mt-4 text-[#CCFF00] hover:underline">Return Home</Link></div>;
+
+  const handleVote = async (choice: 'A' | 'B' | 'Draw') => {
+    if (hasVoted) return;
+    try {
+      const matchRef = doc(db, 'matches', match.id);
+      const field = choice === 'A' ? 'votesA' : choice === 'B' ? 'votesB' : 'votesDraw';
+      await updateDoc(matchRef, {
+        [field]: increment(1)
+      });
+      localStorage.setItem(`voted_match_${id}`, choice);
+      setHasVoted(true);
+    } catch (error) {
+      console.error("Error voting:", error);
+    }
+  };
+
+  const totalVotes = (match.votesA || 0) + (match.votesB || 0) + (match.votesDraw || 0);
+  const getPercent = (val: number = 0) => totalVotes === 0 ? 0 : Math.round((val / totalVotes) * 100);
 
   const isLive = match.status === MatchStatus.LIVE;
 
@@ -47,22 +73,34 @@ export default function MatchDetails() {
 
           <div className="flex flex-col items-center gap-8 md:flex-row md:justify-between">
              <div className="flex flex-col items-center gap-4 flex-1">
-                <div className="w-24 h-24 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-center text-5xl font-black italic text-[#CCFF00]">{match.teamA[0]}</div>
+                <div className="w-24 h-24 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-center text-5xl font-black italic text-[#CCFF00]">
+                  {match.teamALogo ? <img src={match.teamALogo} className="w-16 h-16 object-contain" alt="" /> : match.teamA[0]}
+                </div>
                 <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter italic">{match.teamA}</h1>
              </div>
 
              <div className="flex flex-col items-center gap-4 text-center">
-                <div className="bg-red-600 px-3 py-1 rounded-sm text-[10px] font-black uppercase animate-pulse mb-2">Live Now</div>
+                <div className={cn(
+                  "px-3 py-1 rounded-sm text-[10px] font-black uppercase mb-2",
+                  isLive ? "bg-red-600 animate-pulse" : "bg-white/10"
+                )}>{isLive ? "Live Now" : match.status}</div>
                 <div className="flex items-center gap-6 md:gap-12">
                    <span className="text-6xl md:text-8xl font-black text-[#CCFF00] tracking-tighter shadow-lime">{match.scoreA ?? '0'}</span>
                    <span className="text-4xl md:text-6xl font-black text-white/20 italic mt-8">:</span>
                    <span className="text-6xl md:text-8xl font-black text-[#CCFF00] tracking-tighter shadow-lime">{match.scoreB ?? '0'}</span>
                 </div>
-                <div className="text-white/40 text-[10px] font-bold uppercase tracking-widest">{match.tournament}</div>
+                <div className="text-white/40 text-[10px] font-bold uppercase tracking-widest flex items-center gap-4">
+                   <span>{match.tournament}</span>
+                   <span>•</span>
+                   <span className="flex items-center gap-1"><Calendar size={10} /> {new Date(match.date).toLocaleDateString()}</span>
+                   <span className="flex items-center gap-1"><Clock size={10} /> {new Date(match.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
              </div>
 
              <div className="flex flex-col items-center gap-4 flex-1">
-                <div className="w-24 h-24 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-center text-5xl font-black italic text-neon-blue">{match.teamB[0]}</div>
+                <div className="w-24 h-24 bg-white/5 rounded-2xl border border-white/10 flex items-center justify-center text-5xl font-black italic text-neon-blue">
+                   {match.teamBLogo ? <img src={match.teamBLogo} className="w-16 h-16 object-contain" alt="" /> : match.teamB[0]}
+                </div>
                 <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter italic">{match.teamB}</h1>
              </div>
           </div>
@@ -75,9 +113,10 @@ export default function MatchDetails() {
             {/* Sidebar Navigation */}
             <div className="w-full md:w-64 border-r border-white/10 p-4 space-y-2">
                {[
-                 { id: 'commentary', label: 'Commentary', icon: MessageSquare, color: 'text-[#CCFF00]' },
-                 { id: 'stats', label: 'Match Stats', icon: BarChart3, color: 'text-neon-blue' },
-                 { id: 'lineups', label: 'Lineups', icon: Users, color: 'text-neon-pink' }
+                 { id: 'predictor', label: 'Predictor', icon: VoteIcon, color: 'text-[#CCFF00]' },
+                 { id: 'commentary', label: 'Commentary', icon: MessageSquare, color: 'text-neon-blue' },
+                 { id: 'stats', label: 'Match Stats', icon: BarChart3, color: 'text-neon-pink' },
+                 { id: 'lineups', label: 'Lineups', icon: Users, color: 'text-neon-purple' }
                ].map(tab => (
                  <button
                    key={tab.id}
@@ -96,6 +135,116 @@ export default function MatchDetails() {
             {/* Content Area */}
             <div className="flex-grow p-8 min-h-[600px]">
                <AnimatePresence mode="wait">
+                  {activeTab === 'predictor' && (
+                    <motion.div
+                      key="predictor"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      className="space-y-12"
+                    >
+                      <div className="flex items-center gap-4 border-b border-white/10 pb-6">
+                         <div className="w-12 h-12 bg-[#CCFF00]/10 rounded-xl flex items-center justify-center text-[#CCFF00]">
+                            <VoteIcon size={24} />
+                         </div>
+                         <div>
+                            <h3 className="text-xl font-black uppercase italic italic tracking-tight">Winning Predictor</h3>
+                            <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Community voting & AI Analysis</p>
+                         </div>
+                      </div>
+
+                      {/* Community Poll */}
+                      <div className="space-y-6">
+                         <h4 className="text-xs font-black uppercase tracking-widest text-white/20">Who will win?</h4>
+                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {[
+                              { id: 'A', name: match.teamA, votes: match.votesA || 0, color: 'hover:border-[#CCFF00]' },
+                              { id: 'Draw', name: 'Draw', votes: match.votesDraw || 0, color: 'hover:border-white/40' },
+                              { id: 'B', name: match.teamB, votes: match.votesB || 0, color: 'hover:border-neon-blue' }
+                            ].map(option => (
+                              <button
+                                key={option.id}
+                                disabled={hasVoted}
+                                onClick={() => handleVote(option.id as any)}
+                                className={cn(
+                                  "relative p-6 rounded-2xl bg-white/5 border border-white/5 transition-all flex flex-col gap-2 overflow-hidden group",
+                                  option.color,
+                                  hasVoted && "cursor-default"
+                                )}
+                              >
+                                {hasVoted && (
+                                   <div 
+                                      className="absolute inset-0 bg-[#CCFF00]/10 border-r border-[#CCFF00]/20 transition-all duration-1000" 
+                                      style={{ width: `${getPercent(option.votes)}%` }}
+                                   />
+                                )}
+                                <div className="relative z-10 flex justify-between items-center">
+                                   <span className="font-black uppercase italic tracking-tight">{option.name}</span>
+                                   {hasVoted && <span className="text-xl font-black italic">{getPercent(option.votes)}%</span>}
+                                </div>
+                                {!hasVoted && (
+                                   <span className="text-[10px] font-bold uppercase text-white/20 group-hover:text-white/60">Tap to vote</span>
+                                )}
+                              </button>
+                            ))}
+                         </div>
+                         {hasVoted && <p className="text-center text-[10px] font-bold uppercase tracking-widest text-[#CCFF00]">Total Votes: {totalVotes}</p>}
+                      </div>
+
+                      {/* AI Prediction */}
+                      <div className="bg-gradient-to-br from-[#111] to-black border border-white/10 rounded-3xl p-8 relative overflow-hidden">
+                         <div className="absolute top-0 right-0 p-8 opacity-5">
+                            <BrainCircuit size={160} />
+                         </div>
+                         <div className="flex items-center gap-3 mb-8">
+                            <span className="bg-[#CCFF00]/10 text-[#CCFF00] px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                               <BrainCircuit size={12} /> AI ANALYST
+                            </span>
+                            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Model: sports-gpt-v4.2</span>
+                         </div>
+
+                         {match.aiPrediction ? (
+                           <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-12">
+                              <div className="space-y-6">
+                                 <h4 className="text-3xl font-black uppercase italic tracking-tighter leading-none mb-4">
+                                    AI Prediction <br /> <span className="text-[#CCFF00]">Confidence Report</span>
+                                 </h4>
+                                 <p className="text-white/60 text-sm font-medium leading-relaxed italic">
+                                    "{match.aiPrediction.reason}"
+                                 </p>
+                              </div>
+                              <div className="space-y-8">
+                                 {[
+                                   { label: match.teamA, prob: match.aiPrediction.teamAProb || 0, color: 'bg-[#CCFF00]' },
+                                   { label: 'Draw Probability', prob: match.aiPrediction.drawProb || 0, color: 'bg-white/20' },
+                                   { label: match.teamB, prob: match.aiPrediction.teamBProb || 0, color: 'bg-neon-blue' }
+                                 ].map(p => (
+                                   <div key={p.label} className="space-y-2">
+                                      <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                                         <span>{p.label}</span>
+                                         <span>{p.prob}%</span>
+                                      </div>
+                                      <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                                         <motion.div 
+                                           initial={{ width: 0 }}
+                                           animate={{ width: `${p.prob}%` }}
+                                           transition={{ duration: 1, delay: 0.2 }}
+                                           className={cn("h-full", p.color)} 
+                                         />
+                                      </div>
+                                   </div>
+                                 ))}
+                              </div>
+                           </div>
+                         ) : (
+                           <div className="relative z-10 text-center py-12">
+                              <p className="text-sm font-black uppercase tracking-widest text-white/20 italic">AI Prediction generating for this fixture...</p>
+                           </div>
+                         )}
+                      </div>
+                    </motion.div>
+                  )}
+
                   {activeTab === 'commentary' && (
                     <motion.div
                       key="commentary"

@@ -16,6 +16,7 @@ import AINewsLab from './AINewsLab';
 import NewsAdManager from './NewsAdManager';
 import WidgetManager from './WidgetManager';
 import AdManager from './AdManager';
+import SliderManager from './SliderManager';
 
 export default function AdminDashboard() {
   const { user, isAdmin, loading, logout } = useAuth();
@@ -27,6 +28,7 @@ export default function AdminDashboard() {
   const tabs = [
     { id: 'channels', name: 'Channels', icon: Tv },
     { id: 'matches', name: 'Matches', icon: Trophy },
+    { id: 'slider', name: 'Hero Slider', icon: Layout },
     { id: 'highlights', name: 'Highlights', icon: Award },
     { id: 'news', name: 'News List', icon: Newspaper },
     { id: 'ai-lab', name: 'AI News Lab', icon: Brain },
@@ -175,6 +177,7 @@ export default function AdminDashboard() {
           
           {activeTab === 'channels' && <ChannelManager />}
           {activeTab === 'matches' && <MatchManager />}
+          {activeTab === 'slider' && <SliderManager />}
           {activeTab === 'highlights' && <HighlightManager />}
           {activeTab === 'news' && <NewsManager />}
           {activeTab === 'ai-lab' && <AINewsLab />}

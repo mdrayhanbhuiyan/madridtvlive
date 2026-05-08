@@ -33,9 +33,35 @@
         "channelId": { "type": "string" },
         "scoreA": { "type": "string" },
         "scoreB": { "type": "string" },
-        "isFeatured": { "type": "boolean" }
+        "isFeatured": { "type": "boolean" },
+        "aiPrediction": {
+          "type": "object",
+          "properties": {
+            "teamAProb": { "type": "number" },
+            "teamBProb": { "type": "number" },
+            "drawProb": { "type": "number" },
+            "reason": { "type": "string" }
+          }
+        },
+        "votesA": { "type": "number" },
+        "votesB": { "type": "number" },
+        "votesDraw": { "type": "number" }
       },
       "required": ["teamA", "teamB", "sport", "date", "status"]
+    },
+    "SliderItem": {
+      "title": "Hero Slider Item",
+      "description": "An item for the homepage hero carousel",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "image": { "type": "string", "format": "uri" },
+        "link": { "type": "string" },
+        "order": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["title", "image", "isActive"]
     },
     "Highlight": {
       "title": "Match Highlight",
@@ -121,6 +147,7 @@
     "/adConfigs/{configId}": { "schema": "AdConfig", "description": "Global ad configurations" },
     "/widgets/{widgetId}": { "schema": "Widget", "description": "Collection of site widgets" },
     "/ads/{adId}": { "schema": "Ad", "description": "Collection of advertisements" },
+    "/sliders/{sliderId}": { "schema": "SliderItem", "description": "Collection of hero slider items" },
     "/admins/{adminId}": { "schema": { "type": "object", "properties": { "email": { "type": "string" } } }, "description": "Whitelist of admin UIDs" }
   }
 }

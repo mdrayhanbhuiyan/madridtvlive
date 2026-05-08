@@ -3,6 +3,9 @@ export enum Sport {
   CRICKET = 'Cricket',
   NBA = 'NBA',
   TENNIS = 'Tennis',
+  UFC = 'UFC',
+  F1 = 'F1',
+  BASKETBALL = 'Basketball',
   GENERAL = 'General'
 }
 
@@ -45,6 +48,25 @@ export interface Match {
   scoreA?: string | number;
   scoreB?: string | number;
   isFeatured?: boolean;
+  aiPrediction?: {
+    teamAProb: number;
+    teamBProb: number;
+    drawProb: number;
+    reason: string;
+  };
+  votesA?: number;
+  votesB?: number;
+  votesDraw?: number;
+}
+
+export interface SliderItem {
+  id: string;
+  title: string;
+  subtitle?: string;
+  image: string;
+  link?: string;
+  order: number;
+  isActive: boolean;
 }
 
 export interface Highlight {

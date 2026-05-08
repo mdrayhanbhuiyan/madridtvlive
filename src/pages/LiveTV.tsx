@@ -6,13 +6,13 @@ import { Sport } from '../types';
 
 export default function LiveTV() {
   const { channels, loading } = useData();
-  const [selectedSport, setSelectedSport] = useState<string>('All');
+  const [selectedSport, setSelectedSport] = useState<string>('RTS');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const sports = ['All', Sport.FOOTBALL, Sport.CRICKET, Sport.NBA, Sport.TENNIS, Sport.GENERAL];
+  const sports = ['RTS', 'Football', 'Cricket', 'Basketball', 'UFC', 'F1', 'Tennis'];
 
   const filteredChannels = channels.filter(c => 
-    (selectedSport === 'All' || c.sport === selectedSport) &&
+    (selectedSport.toLowerCase() === 'rts' || c.sport.toLowerCase() === selectedSport.toLowerCase()) &&
     c.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -31,7 +31,7 @@ export default function LiveTV() {
                 key={sport}
                 onClick={() => setSelectedSport(sport)}
                 className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${
-                  selectedSport === sport ? 'bg-neon-lime text-black' : 'bg-white/5 text-white/40 hover:bg-white/10'
+                  selectedSport.toLowerCase() === sport.toLowerCase() ? 'bg-neon-lime text-black' : 'bg-white/5 text-white/40 hover:bg-white/10'
                 }`}
               >
                 {sport}

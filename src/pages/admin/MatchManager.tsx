@@ -39,7 +39,11 @@ export default function MatchManager() {
     channelId: '',
     scoreA: '0',
     scoreB: '0',
-    isFeatured: false
+    isFeatured: false,
+    aiTeamAProb: 0,
+    aiTeamBProb: 0,
+    aiDrawProb: 0,
+    aiReason: ''
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -52,6 +56,17 @@ export default function MatchManager() {
         scoreB: formData.scoreB || '0',
         teamALogo: getLogo(formData.teamA),
         teamBLogo: getLogo(formData.teamB),
+        aiPrediction: {
+          teamAProb: Number(formData.aiTeamAProb) || 0,
+          teamBProb: Number(formData.aiTeamBProb) || 0,
+          drawProb: Number(formData.aiDrawProb) || 0,
+          reason: formData.aiReason || ''
+        },
+        // Remove individual ai fields from root
+        aiTeamAProb: undefined,
+        aiTeamBProb: undefined,
+        aiDrawProb: undefined,
+        aiReason: undefined,
         updatedAt: Date.now()
       };
 
@@ -74,7 +89,11 @@ export default function MatchManager() {
         channelId: '',
         scoreA: '0',
         scoreB: '0',
-        isFeatured: false
+        isFeatured: false,
+        aiTeamAProb: 0,
+        aiTeamBProb: 0,
+        aiDrawProb: 0,
+        aiReason: ''
       });
       setEditingId(null);
       setIsAdding(false);
@@ -94,7 +113,11 @@ export default function MatchManager() {
       channelId: m.channelId || '',
       scoreA: String(m.scoreA || '0'),
       scoreB: String(m.scoreB || '0'),
-      isFeatured: !!m.isFeatured
+      isFeatured: !!m.isFeatured,
+      aiTeamAProb: m.aiPrediction?.teamAProb || 0,
+      aiTeamBProb: m.aiPrediction?.teamBProb || 0,
+      aiDrawProb: m.aiPrediction?.drawProb || 0,
+      aiReason: m.aiPrediction?.reason || ''
     });
     setEditingId(m.id);
     setIsAdding(true);
@@ -109,12 +132,10 @@ export default function MatchManager() {
   };
 
   const deleteMatch = async (id: string) => {
-    if (confirm('Delete this match?')) {
-      try {
-        await deleteDoc(doc(db, 'matches', id));
-      } catch (err) {
-        handleFirestoreError(err, OperationType.DELETE, `matches/${id}`);
-      }
+    try {
+      await deleteDoc(doc(db, 'matches', id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `matches/${id}`);
     }
   };
 
@@ -133,12 +154,28 @@ export default function MatchManager() {
 
       {isAdding && (
         <form onSubmit={handleSubmit} className="bg-zinc-900 border border-white/10 rounded-3xl p-8 grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-top duration-300">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-2">Team A</label>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-2">Team A</label>
+              {formData.teamA && (
+                <div className="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/5">
+                  <img src={getLogo(formData.teamA)} className="w-4 h-4 object-contain" alt="" />
+                  <span className="text-[8px] font-black uppercase text-white/40">Preview Logo</span>
+                </div>
+              )}
+            </div>
             <input required value={formData.teamA} onChange={(e) => setFormData({...formData, teamA: e.target.value})} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white focus:border-neon-lime" placeholder="e.g. Manchester City" />
           </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-2">Team B</label>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-2">Team B</label>
+              {formData.teamB && (
+                <div className="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/5">
+                  <img src={getLogo(formData.teamB)} className="w-4 h-4 object-contain" alt="" />
+                  <span className="text-[8px] font-black uppercase text-white/40">Preview Logo</span>
+                </div>
+              )}
+            </div>
             <input required value={formData.teamB} onChange={(e) => setFormData({...formData, teamB: e.target.value})} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white focus:border-neon-lime" placeholder="e.g. Real Madrid" />
           </div>
           <div className="space-y-2">
@@ -188,6 +225,29 @@ export default function MatchManager() {
              <input type="checkbox" checked={formData.isFeatured} onChange={(e) => setFormData({...formData, isFeatured: e.target.checked})} className="w-5 h-5 rounded border-white/10 bg-black text-[#CCFF00] focus:ring-[#CCFF00]" id="isFeatured" />
              <label htmlFor="isFeatured" className="text-xs font-black uppercase tracking-widest text-white/60 cursor-pointer">Mark as Featured Match (Homepage Hero)</label>
           </div>
+
+          <div className="md:col-span-2 border-t border-white/10 pt-6">
+             <h4 className="text-xs font-black uppercase tracking-widest text-[#CCFF00] mb-6">AI Prediction Analyst Data</h4>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="space-y-2">
+                   <label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-2">{formData.teamA || 'Team A'} Win %</label>
+                   <input type="number" value={formData.aiTeamAProb} onChange={(e) => setFormData({...formData, aiTeamAProb: Number(e.target.value)})} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white focus:border-neon-lime" />
+                </div>
+                <div className="space-y-2">
+                   <label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-2">Draw %</label>
+                   <input type="number" value={formData.aiDrawProb} onChange={(e) => setFormData({...formData, aiDrawProb: Number(e.target.value)})} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white focus:border-neon-lime" />
+                </div>
+                <div className="space-y-2">
+                   <label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-2">{formData.teamB || 'Team B'} Win %</label>
+                   <input type="number" value={formData.aiTeamBProb} onChange={(e) => setFormData({...formData, aiTeamBProb: Number(e.target.value)})} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white focus:border-neon-lime" />
+                </div>
+             </div>
+             <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-2">AI Reasoning / Analysis Text</label>
+                <textarea value={formData.aiReason} onChange={(e) => setFormData({...formData, aiReason: e.target.value})} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white focus:border-neon-lime min-h-[100px]" placeholder="Explain why AI predicts this outcome..." />
+             </div>
+          </div>
+
           <div className="md:col-span-2">
             <button type="submit" className="w-full bg-neon-lime text-black font-black uppercase tracking-widest py-4 rounded-2xl hover:bg-white transition-all">
                {editingId ? 'Update Match Data' : 'Initialize Match'}
@@ -204,13 +264,27 @@ export default function MatchManager() {
                 {m.isFeatured ? <Star size={24} fill="currentColor" /> : <Trophy size={24} />}
               </div>
               <div className="flex-grow max-w-md">
-                <div className="flex items-center gap-3 mb-1">
-                   {m.teamALogo && m.teamALogo.trim() !== '' && <img src={m.teamALogo} alt="" className="w-4 h-4 object-contain" referrerPolicy="no-referrer" />}
-                   <h3 className="font-bold text-white uppercase italic tracking-tight">{m.teamA} VS {m.teamB}</h3>
-                   {m.teamBLogo && m.teamBLogo.trim() !== '' && <img src={m.teamBLogo} alt="" className="w-4 h-4 object-contain" referrerPolicy="no-referrer" />}
+                <div className="flex items-center gap-4 mb-3">
+                   <div className="flex flex-col items-center gap-1">
+                      <div className="w-10 h-10 bg-black/40 rounded-lg p-1.5 border border-white/10 flex items-center justify-center">
+                        {m.teamALogo ? <img src={m.teamALogo} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" /> : <span className="text-[10px] font-black uppercase">{m.teamA?.[0]}</span>}
+                      </div>
+                      <span className="text-[6px] font-black uppercase text-white/40">{m.teamA}</span>
+                   </div>
+                   <span className="text-white/20 font-black italic">VS</span>
+                   <div className="flex flex-col items-center gap-1">
+                      <div className="w-10 h-10 bg-black/40 rounded-lg p-1.5 border border-white/10 flex items-center justify-center">
+                        {m.teamBLogo ? <img src={m.teamBLogo} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" /> : <span className="text-[10px] font-black uppercase">{m.teamB?.[0]}</span>}
+                      </div>
+                      <span className="text-[6px] font-black uppercase text-white/40">{m.teamB}</span>
+                   </div>
+                   <div className="ml-4">
+                      <h3 className="font-bold text-white uppercase italic tracking-tight">{m.teamA} VS {m.teamB}</h3>
+                      <p className="text-[8px] font-bold text-white/20 uppercase tracking-widest">{m.sport} • {m.tournament}</p>
+                   </div>
                 </div>
-                <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest mb-4">{m.sport} • {m.tournament} • {new Date(m.date).toLocaleString()} • {m.status}</p>
                 
+                <p className="text-[8px] font-bold text-white/40 uppercase tracking-widest mb-4">{new Date(m.date).toLocaleString()} • <span className="text-[#CCFF00]">{m.status}</span></p>
                 <div className="flex items-center gap-6">
                    <div className="text-center">
                       <span className="block text-[7px] font-black uppercase text-white/20 mb-1">{m.teamA}</span>

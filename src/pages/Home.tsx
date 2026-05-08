@@ -1,21 +1,80 @@
-import { motion } from 'motion/react';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useData } from '../context/DataContext';
-import MatchCard from '../components/ui/MatchCard';
 import ChannelCard from '../components/ui/ChannelCard';
-import WidgetArea from '../components/widgets/WidgetArea';
 import AdArea from '../components/ads/AdArea';
 import Newsletter from '../components/widgets/Newsletter';
 import { Link } from 'react-router-dom';
-import { MatchStatus, Sport } from '../types';
-import { ChevronRight, Play, Award, Newspaper } from 'lucide-react';
+import { MatchStatus, Sport, SliderItem } from '../types';
+import { ChevronRight, Play, Award, Newspaper, Bell, BarChart3, Trophy, ChevronLeft } from 'lucide-react';
+import { requestNotificationPermission } from '../lib/notifications';
+
+// Localized Countdown Component
+function LocalizedCountdown({ targetDate }: { targetDate: number }) {
+  const [timeLeft, setTimeLeft] = useState<{ h: number, m: number, s: number } | null>(null);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const diff = targetDate - now;
+      if (diff <= 0) {
+        setTimeLeft(null);
+        clearInterval(timer);
+      } else {
+        const h = Math.floor(diff / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+        setTimeLeft({ h, m, s });
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [targetDate]);
+
+  if (!timeLeft) return <span className="text-[9px] font-black text-red-500 uppercase tracking-widest animate-pulse">Match Starting...</span>;
+
+  return (
+    <span className="text-[9px] font-black text-white/60 font-mono tracking-tighter uppercase whitespace-nowrap">
+      Starts in: {timeLeft.h.toString().padStart(2, '0')}h {timeLeft.m.toString().padStart(2, '0')}m {timeLeft.s.toString().padStart(2, '0')}s
+    </span>
+  );
+}
 
 export default function Home() {
-  const { matches, channels, news, highlights, loading } = useData();
+  const [selectedSport, setSelectedSport] = useState<string>('RTS');
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const { matches, channels, news, highlights, sliders, loading } = useData();
 
-  const liveMatches = matches.filter((m) => m.status === MatchStatus.LIVE);
-  const featuredMatch = matches.find((m) => m.isFeatured) || liveMatches[0];
-  const featuredChannels = channels.filter((c) => c.status === 'Active').slice(0, 8);
+  const activeSliders = sliders.filter(s => s.isActive);
+
+  useEffect(() => {
+    if (activeSliders.length > 1) {
+      const timer = setInterval(() => {
+        setCurrentSlide(prev => (prev + 1) % activeSliders.length);
+      }, 5000);
+      return () => clearInterval(timer);
+    }
+  }, [activeSliders.length]);
+
+  const filteredMatches = selectedSport === 'RTS' 
+    ? matches 
+    : matches.filter(m => m.sport.toLowerCase() === selectedSport.toLowerCase());
+
+  const filteredChannels = selectedSport === 'RTS'
+    ? channels
+    : channels.filter(c => c.sport.toLowerCase() === selectedSport.toLowerCase());
+
+  const liveMatches = filteredMatches.filter((m) => m.status === MatchStatus.LIVE);
+  const featuredMatch = filteredMatches.find((m) => m.isFeatured) || liveMatches[0];
+  const featuredChannels = filteredChannels.filter((c) => c.status === 'Active').slice(0, 8);
   const latestNews = news.slice(0, 4);
+
+  const handleNotifyMe = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    const granted = await requestNotificationPermission();
+    if (granted) {
+      alert('Notifications enabled! You will be alerted when matches go live.');
+    }
+  };
 
   if (loading) {
     return (
@@ -27,156 +86,252 @@ export default function Home() {
 
   return (
     <div className="flex-grow flex flex-col p-4 gap-4 overflow-hidden">
+      {/* Live Score Ticker */}
+      {liveMatches.length > 0 && (
+        <div className="w-full bg-[#111] border border-white/5 rounded-2xl overflow-hidden py-3 relative shrink-0">
+          <div className="absolute left-0 top-0 bottom-0 z-10 px-6 bg-[#111] border-r border-white/5 flex items-center gap-2">
+            <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#CCFF00]">Live Ticker</span>
+          </div>
+          <div className="overflow-hidden">
+            <motion.div 
+              animate={{ x: [0, -1000] }}
+              transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+              className="flex items-center gap-12 whitespace-nowrap pl-[140px]"
+            >
+              {[...liveMatches, ...liveMatches].map((match, idx) => (
+                <Link key={`${match.id}-${idx}`} to={`/match/${match.id}`} className="flex items-center gap-4 hover:text-[#CCFF00] transition-colors">
+                  <span className="text-[10px] font-bold text-white/40 uppercase tracking-tighter">{match.tournament}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black uppercase tracking-tight">{match.teamA}</span>
+                    <div className="bg-[#CCFF00] text-black px-1.5 py-0.5 rounded text-[10px] font-black">{match.scoreA ?? '0'} - {match.scoreB ?? '0'}</div>
+                    <span className="text-xs font-black uppercase tracking-tight">{match.teamB}</span>
+                  </div>
+                  <span className="text-[9px] font-black text-red-500 animate-pulse uppercase pr-12">● LIVE</span>
+                </Link>
+              ))}
+            </motion.div>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 flex flex-col lg:flex-row gap-4 overflow-hidden">
         {/* Main Section */}
         <div className="flex-[3] flex flex-col gap-4 overflow-hidden">
-          {/* Category Quick Filter */}
-          <section className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide shrink-0">
-             {['All Sports', 'Football', 'Cricket', 'Basketball', 'UFC', 'F1', 'Tennis'].map((tag, i) => (
-               <button key={tag} className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${i === 0 ? 'bg-[#CCFF00] text-black border-[#CCFF00]' : 'bg-white/5 text-white/40 border-white/5 hover:border-white/20'}`}>
+          {/* Ad Placement: Home Top */}
+          <AdArea placement="HomeTop" className="w-full mb-1 shrink-0" />
+
+          {/* Hero Image Slider */}
+          <section className="relative flex-1 bg-gradient-to-tr from-black to-[#111] rounded-3xl border border-white/10 overflow-hidden group min-h-[450px]">
+            <AnimatePresence mode="wait">
+              {activeSliders.length > 0 ? (
+                <motion.div
+                  key={activeSliders[currentSlide].id}
+                  initial={{ opacity: 0, scale: 1.1 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 1 }}
+                  className="absolute inset-0"
+                >
+                  <div 
+                    className="absolute inset-0 bg-cover bg-center" 
+                    style={{ backgroundImage: `url('${activeSliders[currentSlide].image}')` }} 
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+                  
+                  <div className="absolute bottom-12 left-10 right-10">
+                    <motion.div
+                      initial={{ y: 30, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ delay: 0.3 }}
+                    >
+                      <span className="bg-[#CCFF00] text-black text-[10px] font-black px-3 py-1 rounded-sm uppercase tracking-[0.2em] mb-4 inline-block">Featured Story</span>
+                      <h2 className="text-4xl md:text-6xl lg:text-7xl font-black italic uppercase italic tracking-tighter leading-none mb-4 max-w-4xl">
+                        {activeSliders[currentSlide].title}
+                      </h2>
+                      {activeSliders[currentSlide].subtitle && (
+                        <p className="text-white/60 text-base mb-8 max-w-xl font-medium">
+                          {activeSliders[currentSlide].subtitle}
+                        </p>
+                      )}
+                      {activeSliders[currentSlide].link && (
+                        <Link 
+                          to={activeSliders[currentSlide].link}
+                          className="bg-white text-black px-8 py-3.5 rounded-full font-black text-sm hover:bg-[#CCFF00] hover:scale-105 transition-all inline-flex items-center gap-2"
+                        >
+                          Explore Now <ChevronRight size={18} />
+                        </Link>
+                      )}
+                    </motion.div>
+                  </div>
+                </motion.div>
+              ) : (
+                <div className="absolute inset-0 bg-zinc-900 flex flex-col items-center justify-center text-center p-8">
+                   <h2 className="text-5xl font-black uppercase italic tracking-tighter text-white/5 opacity-10 leading-none">NO ACTIVE SLIDER CONTENT</h2>
+                </div>
+              )}
+            </AnimatePresence>
+
+            {/* Slider Controls */}
+            {activeSliders.length > 1 && (
+              <div className="absolute bottom-12 right-10 flex gap-2">
+                <button 
+                  onClick={() => setCurrentSlide(prev => (prev - 1 + activeSliders.length) % activeSliders.length)}
+                  className="w-12 h-12 bg-white/5 backdrop-blur-md border border-white/10 rounded-full flex items-center justify-center hover:bg-white/20 transition-all"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <button 
+                  onClick={() => setCurrentSlide(prev => (prev + 1) % activeSliders.length)}
+                  className="w-12 h-12 bg-white/5 backdrop-blur-md border border-white/10 rounded-full flex items-center justify-center hover:bg-white/20 transition-all"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+            )}
+            
+            {/* Slide Indicators */}
+            <div className="absolute bottom-12 left-10 flex gap-2 opacity-50">
+               {activeSliders.map((_, idx) => (
+                 <div 
+                   key={idx} 
+                   className={`h-1 transition-all rounded-full ${currentSlide === idx ? 'w-8 bg-[#CCFF00]' : 'w-2 bg-white/20'}`}
+                 />
+               ))}
+            </div>
+          </section>
+
+          {/* New Prominent Scoreboard Section */}
+
+          {liveMatches.length > 0 && (
+            <section className="bg-gradient-to-br from-zinc-900 to-black border border-white/5 rounded-3xl p-8 shadow-inner relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-8 opacity-5">
+                <Award size={120} />
+              </div>
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-2xl font-black uppercase italic tracking-tighter">Live <span className="text-[#CCFF00]">Scoreboard</span></h3>
+                  <p className="text-[10px] font-bold text-white/20 uppercase tracking-[0.2em] mt-1">Real-time match laboratory updates</p>
+                </div>
+                <Link to="/live-score" className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Full Scores</Link>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {liveMatches.slice(0, 4).map((match) => (
+                  <Link key={match.id} to={`/match/${match.id}`} className="bg-black/60 border border-white/10 rounded-2xl p-6 hover:border-[#CCFF00]/40 transition-all flex flex-col gap-6 group relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
+                       <BarChart3 size={100} />
+                    </div>
+
+                    <div className="flex items-center justify-between relative z-10">
+                      <div className="flex-1 flex flex-col gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center p-2 group-hover:bg-[#CCFF00]/10 transition-colors">
+                            {match.teamALogo ? <img src={match.teamALogo} className="w-full h-full object-contain" alt="" /> : <span className="capitalize font-black text-xs">{match.teamA?.[0]}</span>}
+                          </div>
+                          <span className="font-black uppercase tracking-tighter text-sm group-hover:text-[#CCFF00] transition-colors">{match.teamA}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center p-2 group-hover:bg-[#CCFF00]/10 transition-colors">
+                            {match.teamBLogo ? <img src={match.teamBLogo} className="w-full h-full object-contain" alt="" /> : <span className="capitalize font-black text-xs">{match.teamB?.[0]}</span>}
+                          </div>
+                          <span className="font-black uppercase tracking-tighter text-sm group-hover:text-[#CCFF00] transition-colors">{match.teamB}</span>
+                        </div>
+                      </div>
+                      <div className="px-8 border-l border-white/10 flex flex-col items-center gap-2">
+                         <div className="bg-[#CCFF00] text-black px-4 py-5 rounded-2xl font-black text-2xl flex flex-col items-center leading-none shadow-[0_0_20px_rgba(204,255,0,0.2)]">
+                            <span className="tabular-nums">{match.scoreA ?? '0'}</span>
+                            <span className="h-px w-full bg-black/10 my-2" />
+                            <span className="tabular-nums">{match.scoreB ?? '0'}</span>
+                         </div>
+                         <div className="flex flex-col items-center">
+                            <span className="text-[10px] font-black text-[#CCFF00] animate-pulse uppercase">{Math.floor(Math.random() * 90)}'</span>
+                            <span className="text-[7px] font-black text-white/20 uppercase tracking-[0.2em]">Match Time</span>
+                         </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-4 pt-4 border-t border-white/5 relative z-10">
+                       <div className="flex flex-col">
+                          <span className="text-[8px] font-black text-white/20 uppercase">Possession</span>
+                          <span className="text-[10px] font-black text-white/60">48% - 52%</span>
+                       </div>
+                       <div className="flex flex-col">
+                          <span className="text-[8px] font-black text-white/20 uppercase">Total Shots</span>
+                          <span className="text-[10px] font-black text-white/60">12 - 14</span>
+                       </div>
+                       <div className="flex flex-col">
+                          <span className="text-[8px] font-black text-white/20 uppercase">On Target</span>
+                          <span className="text-[10px] font-black text-white/60">5 - 7</span>
+                       </div>
+                       <div className="flex flex-col items-end">
+                          <span className="text-[8px] font-black text-white/20 uppercase">Corners</span>
+                          <span className="text-[10px] font-black text-white/60">4 - 6</span>
+                       </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Category Quick Filter (Relocated Upstairs) */}
+          <section className="bg-[#111] border border-white/5 rounded-2xl p-4 flex gap-3 overflow-x-auto scrollbar-hide shrink-0 mb-4">
+             <div className="flex items-center pr-4 border-r border-white/10 shrink-0">
+                <span className="text-[10px] font-black uppercase tracking-widest text-white/20">Categories</span>
+             </div>
+             {['RTS', 'Football', 'Cricket', 'Basketball', 'UFC', 'F1', 'Tennis'].map((tag) => (
+               <button 
+                 key={tag} 
+                 onClick={() => setSelectedSport(tag)}
+                 className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${selectedSport.toLowerCase() === tag.toLowerCase() ? 'bg-[#CCFF00] text-black border-[#CCFF00]' : 'bg-white/5 text-white/40 border-white/5 hover:border-white/20 hover:text-white'}`}
+               >
                  {tag}
                </button>
              ))}
           </section>
 
-          {/* Ad Placement: Home Top */}
-          <AdArea placement="HomeTop" className="w-full mb-4 shrink-0" />
-
-          {/* Hero Feature */}
-          <section className="relative flex-1 bg-gradient-to-tr from-black to-[#111] rounded-2xl border border-white/10 overflow-hidden group min-h-[400px]">
-            <div 
-              className="absolute inset-0 bg-cover bg-center opacity-40 group-hover:scale-105 transition-transform duration-[10s]" 
-              style={{ backgroundImage: "url('https://images.unsplash.com/photo-1574629810360-7efbbe195018?q=80&w=1000&auto=format&fit=crop')" }} 
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
-            
-            <div className="absolute top-6 left-6 flex items-center gap-2">
-              <span className="bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-sm animate-pulse">LIVE</span>
-              <span className="bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-sm border border-white/10 uppercase tracking-widest">Featured Match</span>
-            </div>
-
-            <div className="absolute bottom-8 left-8 right-8">
-              {featuredMatch ? (
-                <div className="max-w-2xl">
-                  {featuredMatch.status === MatchStatus.LIVE ? (
-                    <div className="flex items-center gap-6 mb-3">
-                      <div className="text-center flex flex-col items-center">
-                        {featuredMatch.teamALogo && featuredMatch.teamALogo.trim() !== '' && <img src={featuredMatch.teamALogo} className="w-12 h-12 object-contain mb-2" alt="" />}
-                        <span className="block text-[10px] text-white/40 uppercase font-bold tracking-widest mb-1">{featuredMatch.teamA}</span>
-                        <span className="text-5xl md:text-7xl font-black text-[#CCFF00] tracking-tighter shadow-[0_0_30px_rgba(204,255,0,0.4)]">{featuredMatch.scoreA ?? '0'}</span>
-                      </div>
-                      <span className="text-3xl md:text-5xl font-black text-white/20 italic mt-6">:</span>
-                      <div className="text-center flex flex-col items-center">
-                        {featuredMatch.teamBLogo && featuredMatch.teamBLogo.trim() !== '' && <img src={featuredMatch.teamBLogo} className="w-12 h-12 object-contain mb-2" alt="" />}
-                        <span className="block text-[10px] text-white/40 uppercase font-bold tracking-widest mb-1">{featuredMatch.teamB}</span>
-                        <span className="text-5xl md:text-7xl font-black text-[#CCFF00] tracking-tighter shadow-[0_0_30px_rgba(204,255,0,0.4)]">{featuredMatch.scoreB ?? '0'}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2 mb-4">
-                       <div className="flex items-center gap-4">
-                          {featuredMatch.teamALogo && featuredMatch.teamALogo.trim() !== '' && <img src={featuredMatch.teamALogo} className="w-10 h-10 object-contain" alt="" />}
-                          <h2 className="text-4xl md:text-5xl lg:text-6xl font-black italic uppercase leading-none tracking-tighter">
-                            {featuredMatch.teamA}
-                          </h2>
-                       </div>
-                       <span className="text-2xl font-black text-white/10 ml-12">VS</span>
-                       <div className="flex items-center gap-4">
-                          {featuredMatch.teamBLogo && featuredMatch.teamBLogo.trim() !== '' && <img src={featuredMatch.teamBLogo} className="w-10 h-10 object-contain" alt="" />}
-                          <h2 className="text-4xl md:text-5xl lg:text-6xl font-black italic uppercase leading-none tracking-tighter">
-                            {featuredMatch.teamB}
-                          </h2>
-                       </div>
-                    </div>
-                  )}
-                  <p className="text-white/60 text-sm mb-6 max-w-md hidden md:block">
-                    Catch all the action live with multi-cam feeds and real-time tactical analysis for <span className="text-white font-bold">{featuredMatch.tournament}</span>.
-                  </p>
-                  <div className="flex gap-3">
-                    <Link to={featuredMatch.channelId ? `/channel/${featuredMatch.channelId}` : `/match/${featuredMatch.id}`} className="bg-[#CCFF00] text-black px-6 py-2.5 rounded-full font-bold text-sm hover:scale-105 transition-transform flex items-center gap-2">
-                      <Play size={16} fill="currentColor" /> {featuredMatch.status === MatchStatus.LIVE ? 'Watch Live Now' : 'Join Match Center'}
-                    </Link>
-                    <Link to={`/match/${featuredMatch.id}`} className="bg-white/10 backdrop-blur-md border border-white/20 px-6 py-2.5 rounded-full font-bold text-sm hover:bg-white/20 transition-colors">
-                      Detailed Analysis
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-                <div className="max-w-2xl">
-                   <h2 className="text-4xl md:text-5xl lg:text-6xl font-black italic uppercase leading-none mb-3 tracking-tighter">
-                    Ready for the <span className="text-[#CCFF00]">Weekend</span>
-                  </h2>
-                  <p className="text-white/60 text-sm mb-6 max-w-md">
-                    Stay tuned for the biggest matches of the season. 24/7 sports coverage starting soon.
-                  </p>
-                  <Link to="/schedule" className="bg-[#CCFF00] text-black px-6 py-2.5 rounded-full font-bold text-sm hover:scale-105 transition-transform inline-block">
-                    Full Schedule
-                  </Link>
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* Live Score Ticker (Google Style) */}
-          {liveMatches.length > 0 && (
-            <motion.section 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-[#0A0A0A] border border-white/10 rounded-2xl p-4 flex items-center gap-6 overflow-x-auto scrollbar-hide shadow-2xl shrink-0"
-            >
-              <div className="flex items-center gap-2 shrink-0 border-r border-white/10 pr-6">
-                <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-[#CCFF00]">Live Scores</span>
-              </div>
-              <div className="flex items-center gap-6 whitespace-nowrap">
-                {liveMatches.map((match) => (
-                  <Link 
-                    key={match.id} 
-                    to={`/match/${match.id}`}
-                    className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-xl px-4 py-2 hover:border-[#CCFF00]/40 transition-all group"
-                  >
-                    <div className="flex flex-col items-end gap-1">
-                      <span className="text-[10px] font-bold text-white/60">{match.teamA}</span>
-                      <span className="text-[10px] font-bold text-white/60">{match.teamB}</span>
-                    </div>
-                    <div className="flex flex-col items-center justify-center bg-black/40 px-2 py-1 rounded border border-white/5 group-hover:border-[#CCFF00]/20 min-w-[32px]">
-                      <span className="text-xs font-black text-[#CCFF00] mb-0.5">{match.scoreA ?? '0'}</span>
-                      <span className="text-xs font-black text-[#CCFF00]">{match.scoreB ?? '0'}</span>
-                    </div>
-                    <div className="flex flex-col gap-1 items-start">
-                       <span className="text-[8px] font-black text-red-500 animate-pulse uppercase tracking-tighter">Live</span>
-                       <span className="text-[8px] font-bold text-white/20 uppercase tracking-widest">{match.tournament.split(' ')[0]}</span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </motion.section>
-          )}
-
-          {/* Upcoming Fixtures Horizontal Scroll */}
-          <section className="bg-black/40 border border-white/5 rounded-2xl p-6">
+          {/* Upcoming Fixtures Section */}
+          <section className="bg-[#0F0F0F] border border-white/10 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-[#CCFF00]">Upcoming Fixtures</h3>
-              <Link to="/schedule" className="text-[10px] text-white/40 uppercase font-bold">View Schedule</Link>
+              <div className="flex items-center gap-4">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[#CCFF00]">Upcoming Fixtures</h3>
+                <button 
+                  onClick={handleNotifyMe}
+                  className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 px-2 py-1 rounded-md border border-white/5 text-[8px] font-black uppercase text-[#CCFF00] tracking-widest transition-all"
+                >
+                  < Bell size={10} />
+                  Enable Alerts
+                </button>
+              </div>
+              <Link to="/schedule" className="text-[10px] text-white/40 uppercase font-bold hover:text-white transition-colors">View Schedule</Link>
             </div>
-            <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-              {matches.filter(m => m.status === MatchStatus.UPCOMING).slice(0, 8).map(match => (
-                <div key={match.id} className="min-w-[200px] bg-zinc-900 border border-white/5 rounded-xl p-4 shrink-0 hover:border-white/20 transition-colors">
-                  <div className="text-[8px] font-black uppercase text-white/20 tracking-widest mb-3">{match.tournament}</div>
-                  <div className="flex flex-col gap-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-white/80">{match.teamA}</span>
+            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+              {filteredMatches.filter(m => m.status === MatchStatus.UPCOMING).slice(0, 8).map(match => (
+                <div key={match.id} className="min-w-[220px] bg-zinc-900/50 border border-white/5 rounded-2xl p-5 shrink-0 hover:border-[#CCFF00]/30 transition-all group">
+                  <div className="flex justify-between items-center mb-4">
+                    <div className="text-[8px] font-black uppercase text-white/20 tracking-widest">{match.tournament}</div>
+                    <div className="bg-[#CCFF00]/10 px-2 py-0.5 rounded text-[8px] font-black text-[#CCFF00] uppercase">Next</div>
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex justify-between items-center group-hover:translate-x-1 transition-transform">
+                      <span className="text-xs font-black uppercase tracking-tight text-white/80">{match.teamA}</span>
                       <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
                     </div>
-                    <div className="flex justify-between items-center text-xs font-bold text-white/20 italic">VS</div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-white/80">{match.teamB}</span>
+                    <div className="flex justify-between items-center text-[10px] font-black text-white/10 italic">VS</div>
+                    <div className="flex justify-between items-center group-hover:-translate-x-1 transition-transform">
+                      <span className="text-xs font-black uppercase tracking-tight text-white/80">{match.teamB}</span>
                       <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
                     </div>
                   </div>
-                  <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
-                    <span className="text-[9px] font-mono text-neon-lime">{new Date(match.date).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
-                    <Link to="/schedule" className="text-[8px] font-black uppercase text-white/40 hover:text-white">Notify</Link>
+                  <div className="mt-5 pt-4 border-t border-white/5 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-mono text-[#CCFF00] font-black">{new Date(match.date).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+                      <span className="text-[9px] font-mono text-white/40 uppercase">{new Date(match.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    <div className="bg-black/40 px-3 py-2 rounded-xl border border-white/5 flex items-center justify-center gap-2">
+                       <span className="w-1 h-1 bg-[#CCFF00] rounded-full animate-pulse" />
+                       <LocalizedCountdown targetDate={match.date} />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -184,16 +339,16 @@ export default function Home() {
           </section>
 
           {/* Ad Placement: Home After Fixtures */}
-          <AdArea placement="HomeAfterFixtures" className="w-full" />
+          <AdArea placement="HomeAfterFixtures" className="w-full shrink-0" />
 
           {/* Featured Channels Section */}
-          <section className="h-auto md:h-44 flex flex-col gap-3">
-            <div className="flex items-center justify-between">
+          <section className="bg-[#0F0F0F] border border-white/10 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-6">
               <h3 className="text-xs font-bold uppercase tracking-widest text-[#CCFF00]">Featured Channels</h3>
               <Link to="/live-tv" className="text-[10px] text-white/40 uppercase font-bold hover:text-white transition-colors">View All</Link>
             </div>
             <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-              {channels.slice(0, 6).map((channel) => (
+              {channels.slice(0, 8).map((channel) => (
                 <ChannelCard key={channel.id} channel={channel} />
               ))}
             </div>
@@ -206,34 +361,67 @@ export default function Home() {
           <div className="flex-1 bg-[#0F0F0F] rounded-2xl border border-white/10 p-5 flex flex-col overflow-hidden">
             <h3 className="text-xs font-bold uppercase tracking-widest text-[#CCFF00] mb-4">Live Scores</h3>
             <div className="flex flex-col gap-3 overflow-y-auto pr-2 scrollbar-hide">
-              {matches.filter(m => m.status === MatchStatus.LIVE).slice(0, 5).map(match => (
-                <div key={match.id} className="bg-[#181818] rounded-xl p-4 border border-white/5 hover:border-[#CCFF00]/30 transition-colors cursor-pointer group">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-[9px] text-white/40 uppercase font-bold tracking-widest">{match.sport} • LIVE</span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+              {filteredMatches.filter(m => m.status === MatchStatus.LIVE).slice(0, 5).map(match => (
+                <div key={match.id} className="bg-[#181818] rounded-xl p-4 border border-white/5 hover:border-[#CCFF00]/30 transition-all cursor-pointer group flex flex-col gap-4 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-[0.02] -rotate-12">
+                    <Trophy size={60} />
                   </div>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-bold group-hover:text-[#CCFF00] transition-colors">{match.teamA}</span>
-                    <span className="text-base font-black text-[#CCFF00] glow-lime">{match.scoreA ?? '0'}</span>
+
+                  <div className="flex justify-between items-center relative z-10">
+                    <div className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                      <span className="text-[9px] text-white/40 uppercase font-black tracking-[0.2em]">{match.sport} • LIVE</span>
+                    </div>
+                    <span className="text-[9px] font-black text-[#CCFF00] bg-[#CCFF00]/10 px-2 py-0.5 rounded uppercase tracking-widest">{Math.floor(Math.random() * 90)}'</span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold group-hover:text-[#CCFF00] transition-colors">{match.teamB}</span>
-                    <span className="text-base font-black text-[#CCFF00] glow-lime">{match.scoreB ?? '0'}</span>
+
+                  <div className="grid grid-cols-1 gap-2 relative z-10">
+                    <div className="flex justify-between items-center group-hover:translate-x-1 transition-transform">
+                      <div className="flex items-center gap-2">
+                        {match.teamALogo && <img src={match.teamALogo} className="w-3 h-3 object-contain" alt="" />}
+                        <span className="text-xs font-black uppercase text-white/80 group-hover:text-[#CCFF00] transition-colors">{match.teamA}</span>
+                      </div>
+                      <span className="text-lg font-black text-[#CCFF00] tabular-nums">{match.scoreA ?? '0'}</span>
+                    </div>
+                    <div className="flex justify-between items-center group-hover:-translate-x-1 transition-transform">
+                      <div className="flex items-center gap-2">
+                        {match.teamBLogo && <img src={match.teamBLogo} className="w-3 h-3 object-contain" alt="" />}
+                        <span className="text-xs font-black uppercase text-white/80 group-hover:text-[#CCFF00] transition-colors">{match.teamB}</span>
+                      </div>
+                      <span className="text-lg font-black text-[#CCFF00] tabular-nums">{match.scoreB ?? '0'}</span>
+                    </div>
                   </div>
                   
-                  {/* Win Probability Logic (Simulated) */}
-                  <div className="mt-4 pt-3 border-t border-white/5">
-                     <div className="flex justify-between text-[8px] font-black uppercase text-white/20 mb-1">
-                        <span>Win Prob.</span>
-                        <span>{(40 + Math.random() * 20).toFixed(0)}%</span>
+                  {/* Mini Match Center Data */}
+                  <div className="pt-3 border-t border-white/5 space-y-3 relative z-10">
+                     <div className="grid grid-cols-3 gap-2">
+                        <div className="flex flex-col">
+                           <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">Shots</span>
+                           <span className="text-[10px] font-black text-white/60">{8 + Math.floor(Math.random() * 5)} - {7 + Math.floor(Math.random() * 6)}</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                           <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">Poss.</span>
+                           <span className="text-[10px] font-black text-white/60">48% - 52%</span>
+                        </div>
+                        <div className="flex flex-col items-end">
+                           <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">Prob.</span>
+                           <span className="text-[10px] font-black text-[#CCFF00]">{(50 + Math.random() * 20).toFixed(0)}%</span>
+                        </div>
                      </div>
                      <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-                        <div className="h-full bg-neon-blue animate-pulse" style={{ width: `${40 + Math.random() * 20}%` }} />
+                        <div className="h-full bg-[#CCFF00] animate-pulse" style={{ width: `${50 + Math.random() * 20}%` }} />
                      </div>
                   </div>
+
+                  <Link 
+                    to={`/match/${match.id}`}
+                    className="mt-2 w-full py-2 bg-white/5 hover:bg-[#CCFF00] hover:text-black border border-white/5 rounded-lg text-[9px] font-black uppercase tracking-[0.2em] transition-all text-center"
+                  >
+                    Details
+                  </Link>
                 </div>
               ))}
-              {matches.filter(m => m.status === MatchStatus.LIVE).length === 0 && (
+              {filteredMatches.filter(m => m.status === MatchStatus.LIVE).length === 0 && (
                 <div className="flex-grow flex items-center justify-center text-center p-8 opacity-20">
                   <span className="text-[10px] font-bold uppercase tracking-widest italic">No Live Events</span>
                 </div>

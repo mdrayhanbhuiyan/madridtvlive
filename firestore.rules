@@ -47,6 +47,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    match /sliders/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
     match /admins/{id} {
       allow read: if isSignedIn();
       allow write: if false;
