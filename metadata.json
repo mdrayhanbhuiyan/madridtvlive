@@ -1,0 +1,10 @@
+{
+  "name": "Madrid TV Live",
+  "description": "Professional sports streaming platform with live scores, match schedules, highlights, and news. Featuring real-time TV channel streaming and an advanced admin dashboard.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}

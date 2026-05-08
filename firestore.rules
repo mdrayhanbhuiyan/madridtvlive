@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'rayhanbhuiyan2021@gmail.com'
+      );
+    }
+
+    // Collection matching
+    match /channels/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /matches/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /highlights/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /news/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /adConfigs/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /widgets/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /ads/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /admins/{id} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+  }
+}

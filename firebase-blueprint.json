@@ -1,0 +1,126 @@
+{
+  "entities": {
+    "Channel": {
+      "title": "TV Channel",
+      "description": "A live sports TV channel",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "sport": { "type": "string", "enum": ["Football", "Cricket", "NBA", "Tennis", "General"] },
+        "country": { "type": "string" },
+        "logo": { "type": "string", "format": "uri" },
+        "type": { "type": "string", "enum": ["iframe", "youtube", "m3u8"] },
+        "source": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Offline"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "sport", "type", "source", "status"]
+    },
+    "Match": {
+      "title": "Sports Match",
+      "description": "An upcoming or live sports match",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "teamA": { "type": "string" },
+        "teamB": { "type": "string" },
+        "teamALogo": { "type": "string" },
+        "teamBLogo": { "type": "string" },
+        "sport": { "type": "string" },
+        "tournament": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["Upcoming", "Live", "Finished"] },
+        "channelId": { "type": "string" },
+        "scoreA": { "type": "string" },
+        "scoreB": { "type": "string" },
+        "isFeatured": { "type": "boolean" }
+      },
+      "required": ["teamA", "teamB", "sport", "date", "status"]
+    },
+    "Highlight": {
+      "title": "Match Highlight",
+      "description": "Video highlights of a finished match",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "thumbnail": { "type": "string", "format": "uri" },
+        "videoUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "duration": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "thumbnail", "videoUrl", "category"]
+    },
+    "News": {
+      "title": "Sports News",
+      "description": "AI-generated and manual news articles",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "category": { "type": "string" },
+        "image": { "type": "string", "format": "uri" },
+        "content": { "type": "string" },
+        "excerpt": { "type": "string" },
+        "metaTitle": { "type": "string" },
+        "metaDescription": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string", "enum": ["Draft", "Scheduled", "Published", "Archived"] },
+        "type": { "type": "string" },
+        "country": { "type": "string" },
+        "tone": { "type": "string" },
+        "publishDate": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "allowComments": { "type": "boolean" },
+        "isFeatured": { "type": "boolean" }
+      },
+      "required": ["title", "slug", "category", "content", "status"]
+    },
+    "AdConfig": {
+      "title": "Global Ad Configuration",
+      "description": "Configurations for ad placements across the site",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "topBanner": { "type": "string" },
+        "insideArticle1": { "type": "string" },
+        "insideArticle2": { "type": "string" },
+        "sidebar": { "type": "string" },
+        "footer": { "type": "string" }
+      }
+    },
+    "Widget": {
+      "title": "External Widget",
+      "description": "HTML/JS embed code for external widgets",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "htmlCode": { "type": "string" },
+        "placement": { "type": "string", "enum": ["HomeSidebar", "LiveScore", "MatchDetails", "Footer"] }
+      },
+      "required": ["name", "htmlCode", "placement"]
+    },
+    "Ad": {
+      "title": "Advertisement",
+      "description": "Ad code for monetization",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "placement": { "type": "string", "enum": ["Header", "Sidebar", "Player", "Footer"] },
+        "code": { "type": "string" }
+      },
+      "required": ["name", "placement", "code"]
+    }
+  },
+  "firestore": {
+    "/channels/{channelId}": { "schema": "Channel", "description": "Collection of TV channels" },
+    "/matches/{matchId}": { "schema": "Match", "description": "Collection of sports matches" },
+    "/highlights/{highlightId}": { "schema": "Highlight", "description": "Collection of video highlights" },
+    "/news/{newsId}": { "schema": "News", "description": "Collection of news articles" },
+    "/adConfigs/{configId}": { "schema": "AdConfig", "description": "Global ad configurations" },
+    "/widgets/{widgetId}": { "schema": "Widget", "description": "Collection of site widgets" },
+    "/ads/{adId}": { "schema": "Ad", "description": "Collection of advertisements" },
+    "/admins/{adminId}": { "schema": { "type": "object", "properties": { "email": { "type": "string" } } }, "description": "Whitelist of admin UIDs" }
+  }
+}
