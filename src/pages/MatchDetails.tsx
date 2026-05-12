@@ -1,11 +1,11 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
-import { MatchStatus, Sport } from '../types';
-import { Trophy, Clock, Users, MessageSquare, BarChart3, ChevronLeft, Calendar, BrainCircuit, Vote as VoteIcon } from 'lucide-react';
+import { MatchStatus, Sport, CommentaryItem } from '../types';
+import { Trophy, Clock, Users, MessageSquare, BarChart3, ChevronLeft, Calendar, BrainCircuit, Vote as VoteIcon, Send } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { doc, updateDoc, increment } from 'firebase/firestore';
+import { doc, updateDoc, increment, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export default function MatchDetails() {
@@ -13,12 +13,34 @@ export default function MatchDetails() {
   const { matches, loading } = useData();
   const [activeTab, setActiveTab] = useState<'stats' | 'lineups' | 'commentary' | 'predictor'>('predictor');
   const [hasVoted, setHasVoted] = useState(false);
+  const [liveCommentary, setLiveCommentary] = useState<CommentaryItem[]>([]);
   const match = matches.find(m => m.id === id);
 
   useEffect(() => {
     const voted = localStorage.getItem(`voted_match_${id}`);
     if (voted) setHasVoted(true);
   }, [id]);
+
+  useEffect(() => {
+    if (!id || !match) return;
+
+    const q = query(
+      collection(db, 'matches', id, 'commentary'),
+      orderBy('timestamp', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const updates = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as CommentaryItem[];
+      setLiveCommentary(updates);
+    }, (error) => {
+      console.error("Commentary error:", error);
+    });
+
+    return () => unsubscribe();
+  }, [id, match]);
 
   if (loading) return <div className="flex-grow flex items-center justify-center bg-black"><div className="w-12 h-12 border-4 border-[#CCFF00] border-t-transparent rounded-full animate-spin" /></div>;
   if (!match) return <div className="flex-grow flex flex-col items-center justify-center bg-black text-white/40 p-20 capitalize">Match not found<Link to="/" className="mt-4 text-[#CCFF00] hover:underline">Return Home</Link></div>;
@@ -51,13 +73,6 @@ export default function MatchDetails() {
     fouls: { a: 10, b: 7 },
     corners: { a: 4, b: 6 }
   };
-
-  const commentary = [
-    { time: "88'", event: "Yellow Card", text: "Heavy tackle in the midfield. Free kick awarded to Real Madrid.", player: "Vini Jr" },
-    { time: "75'", event: "Goal!", text: "Incredible strike from outside the box! Top corner finish.", player: "Jude Bellingham" },
-    { time: "60'", event: "Substitution", text: "Changing tactics. Striker off, Midfielder on.", player: "Rodrygo Out" },
-    { time: "45+2'", event: "Half Time", text: "The referee blows the whistle for the break. Intense first half.", player: "" }
-  ];
 
   return (
     <div className="flex-grow bg-black text-white pb-20">
@@ -253,21 +268,60 @@ export default function MatchDetails() {
                       exit={{ opacity: 0, x: -20 }}
                       className="space-y-6"
                     >
-                      <h3 className="text-sm font-black uppercase tracking-widest text-[#CCFF00] mb-8">Live Updates</h3>
+                      <div className="flex items-center justify-between mb-8">
+                         <h3 className="text-sm font-black uppercase tracking-widest text-neon-blue">Live Play-by-Play</h3>
+                         {isLive && (
+                           <div className="flex items-center gap-2">
+                             <span className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse" />
+                             <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Broadcasting Live</span>
+                           </div>
+                         )}
+                      </div>
+
                       <div className="space-y-8">
-                        {commentary.map((item, idx) => (
-                          <div key={idx} className="flex gap-6 items-start relative group">
-                            {idx !== commentary.length - 1 && <div className="absolute left-3 top-8 bottom-[-32px] w-[1px] bg-white/10 group-hover:bg-[#CCFF00]/40 transition-colors" />}
-                            <div className="w-6 text-[10px] font-black text-[#CCFF00] pt-1">{item.time}</div>
-                            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex-grow hover:border-white/20 transition-all">
-                               <div className="flex justify-between items-center mb-2">
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-white/40">{item.event}</span>
-                                  <span className="text-[10px] font-bold text-[#CCFF00] italic">{item.player}</span>
-                               </div>
-                               <p className="text-sm text-white/80 leading-relaxed font-medium">{item.text}</p>
-                            </div>
+                        {liveCommentary.length > 0 ? (
+                          liveCommentary.map((item, idx) => (
+                            <motion.div 
+                              key={item.id} 
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="flex gap-6 items-start relative group"
+                            >
+                              {idx !== liveCommentary.length - 1 && <div className="absolute left-3 top-8 bottom-[-32px] w-[1px] bg-white/10 group-hover:bg-neon-blue/40 transition-colors" />}
+                              <div className="w-8 text-[10px] font-black text-neon-blue pt-1 text-center shrink-0">{item.minute}</div>
+                              <div className={cn(
+                                "bg-white/5 border border-white/10 rounded-2xl p-5 flex-grow hover:border-white/20 transition-all relative overflow-hidden",
+                                item.type === 'goal' && "border-neon-lime/30 bg-neon-lime/5"
+                              )}>
+                                 {item.type === 'goal' && (
+                                   <div className="absolute top-0 right-0 p-3 opacity-10">
+                                      <Trophy size={40} />
+                                   </div>
+                                 )}
+                                 <div className="flex justify-between items-center mb-3">
+                                    <span className={cn(
+                                      "text-[9px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded",
+                                      item.type === 'goal' ? "bg-neon-lime text-black" : "bg-white/10 text-white/40"
+                                    )}>
+                                      {item.type}
+                                    </span>
+                                    <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">
+                                       {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                 </div>
+                                 <p className={cn(
+                                   "text-sm leading-relaxed font-medium transition-colors",
+                                   item.type === 'goal' ? "text-white" : "text-white/70"
+                                 )}>{item.text}</p>
+                              </div>
+                            </motion.div>
+                          ))
+                        ) : (
+                          <div className="text-center py-20 border border-dashed border-white/10 rounded-3xl">
+                             <Send className="mx-auto text-white/10 mb-4" size={40} />
+                             <p className="text-sm font-black uppercase tracking-widest text-white/20 italic">Awaiting kickoff updates...</p>
                           </div>
-                        ))}
+                        )}
                       </div>
                     </motion.div>
                   )}

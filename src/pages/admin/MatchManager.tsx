@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
 import { db } from '../../lib/firebase';
-import { collection, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
-import { Plus, Trash2, XCircle, Trophy, Edit2, Star, Check } from 'lucide-react';
-import { Sport, MatchStatus, Match } from '../../types';
+import { collection, addDoc, deleteDoc, doc, updateDoc, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { Plus, Trash2, XCircle, Trophy, Edit2, Star, Check, MessageSquare, Send } from 'lucide-react';
+import { Sport, MatchStatus, Match, CommentaryItem } from '../../types';
 import { handleFirestoreError, OperationType } from '../../lib/error-handler';
 
 const TOURNAMENTS = [
@@ -29,9 +29,15 @@ export default function MatchManager() {
   const { matches, channels } = useData();
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showCommentaryManager, setShowCommentaryManager] = useState<string | null>(null);
+  const [liveCommentary, setLiveCommentary] = useState<CommentaryItem[]>([]);
+  const [newComment, setNewComment] = useState({ minute: '', text: '', type: 'info' as any });
+
   const [formData, setFormData] = useState({
     teamA: '',
     teamB: '',
+    teamALogo: '',
+    teamBLogo: '',
     sport: Sport.FOOTBALL,
     tournament: TOURNAMENTS[0],
     date: '',
@@ -46,27 +52,79 @@ export default function MatchManager() {
     aiReason: ''
   });
 
+  // Automatically update logo when team name changes
+  useEffect(() => {
+    if (formData.teamA && !editingId) {
+      setFormData(prev => ({ ...prev, teamALogo: getLogo(prev.teamA) }));
+    }
+  }, [formData.teamA, editingId]);
+
+  useEffect(() => {
+    if (formData.teamB && !editingId) {
+      setFormData(prev => ({ ...prev, teamBLogo: getLogo(prev.teamB) }));
+    }
+  }, [formData.teamB, editingId]);
+
+  // Real-time commentary listener
+  useEffect(() => {
+    if (!showCommentaryManager) {
+      setLiveCommentary([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'matches', showCommentaryManager, 'commentary'),
+      orderBy('timestamp', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setLiveCommentary(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as CommentaryItem[]);
+    });
+
+    return () => unsubscribe();
+  }, [showCommentaryManager]);
+
+  const addCommentary = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showCommentaryManager) return;
+    try {
+      await addDoc(collection(db, 'matches', showCommentaryManager, 'commentary'), {
+        ...newComment,
+        timestamp: Date.now()
+      });
+      setNewComment({ minute: '', text: '', type: 'info' });
+    } catch (err) {
+      console.error("Error adding commentary:", err);
+    }
+  };
+
+  const deleteCommentary = async (commentId: string) => {
+    if (!showCommentaryManager) return;
+    try {
+      await deleteDoc(doc(db, 'matches', showCommentaryManager, 'commentary', commentId));
+    } catch (err) {
+      console.error("Error deleting commentary:", err);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const { aiTeamAProb, aiTeamBProb, aiDrawProb, aiReason, ...coreData } = formData;
+      
       const data = {
-        ...formData,
+        ...coreData,
         date: new Date(formData.date).getTime(),
         scoreA: formData.scoreA || '0',
         scoreB: formData.scoreB || '0',
-        teamALogo: getLogo(formData.teamA),
-        teamBLogo: getLogo(formData.teamB),
+        teamALogo: formData.teamALogo || getLogo(formData.teamA),
+        teamBLogo: formData.teamBLogo || getLogo(formData.teamB),
         aiPrediction: {
-          teamAProb: Number(formData.aiTeamAProb) || 0,
-          teamBProb: Number(formData.aiTeamBProb) || 0,
-          drawProb: Number(formData.aiDrawProb) || 0,
-          reason: formData.aiReason || ''
+          teamAProb: Number(aiTeamAProb) || 0,
+          teamBProb: Number(aiTeamBProb) || 0,
+          drawProb: Number(aiDrawProb) || 0,
+          reason: aiReason || ''
         },
-        // Remove individual ai fields from root
-        aiTeamAProb: undefined,
-        aiTeamBProb: undefined,
-        aiDrawProb: undefined,
-        aiReason: undefined,
         updatedAt: Date.now()
       };
 
@@ -82,6 +140,8 @@ export default function MatchManager() {
       setFormData({ 
         teamA: '', 
         teamB: '', 
+        teamALogo: '',
+        teamBLogo: '',
         sport: Sport.FOOTBALL, 
         tournament: TOURNAMENTS[0], 
         date: '', 
@@ -106,6 +166,8 @@ export default function MatchManager() {
     setFormData({
       teamA: m.teamA,
       teamB: m.teamB,
+      teamALogo: m.teamALogo || '',
+      teamBLogo: m.teamBLogo || '',
       sport: m.sport,
       tournament: m.tournament,
       date: new Date(m.date).toISOString().slice(0, 16),
@@ -165,18 +227,26 @@ export default function MatchManager() {
               )}
             </div>
             <input required value={formData.teamA} onChange={(e) => setFormData({...formData, teamA: e.target.value})} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white focus:border-neon-lime" placeholder="e.g. Manchester City" />
+            <div className="space-y-2">
+               <label className="text-[9px] font-black uppercase tracking-widest text-white/20 ml-2">Team A Logo URL (Auto-generated)</label>
+               <input value={formData.teamALogo} onChange={(e) => setFormData({...formData, teamALogo: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-xl p-3 text-xs text-white/60 focus:border-neon-lime" placeholder="Override logo URL..." />
+            </div>
           </div>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-2">Team B</label>
               {formData.teamB && (
                 <div className="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/5">
-                  <img src={getLogo(formData.teamB)} className="w-4 h-4 object-contain" alt="" />
+                  <img src={formData.teamBLogo || getLogo(formData.teamB)} className="w-4 h-4 object-contain" alt="" />
                   <span className="text-[8px] font-black uppercase text-white/40">Preview Logo</span>
                 </div>
               )}
             </div>
             <input required value={formData.teamB} onChange={(e) => setFormData({...formData, teamB: e.target.value})} className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white focus:border-neon-lime" placeholder="e.g. Real Madrid" />
+            <div className="space-y-2">
+               <label className="text-[9px] font-black uppercase tracking-widest text-white/20 ml-2">Team B Logo URL (Auto-generated)</label>
+               <input value={formData.teamBLogo} onChange={(e) => setFormData({...formData, teamBLogo: e.target.value})} className="w-full bg-black/40 border border-white/5 rounded-xl p-3 text-xs text-white/60 focus:border-neon-lime" placeholder="Override logo URL..." />
+            </div>
           </div>
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase tracking-widest text-white/40 ml-2">Sport</label>
@@ -258,58 +328,104 @@ export default function MatchManager() {
 
       <div className="grid grid-cols-1 gap-4">
         {matches.map(m => (
-          <div key={m.id} className="bg-zinc-900 border border-white/5 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 group hover:border-white/10 transition-all">
-            <div className="flex items-center space-x-6 flex-grow">
-              <div className={`p-4 rounded-2xl ${m.isFeatured ? 'bg-[#CCFF00]/10 text-[#CCFF00]' : 'bg-white/5 text-white/20'}`}>
-                {m.isFeatured ? <Star size={24} fill="currentColor" /> : <Trophy size={24} />}
+          <div key={m.id} className="flex flex-col gap-4">
+            <div className="bg-zinc-900 border border-white/5 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 group hover:border-white/10 transition-all">
+              <div className="flex items-center space-x-6 flex-grow">
+                <div className={`p-4 rounded-2xl ${m.isFeatured ? 'bg-[#CCFF00]/10 text-[#CCFF00]' : 'bg-white/5 text-white/20'}`}>
+                  {m.isFeatured ? <Star size={24} fill="currentColor" /> : <Trophy size={24} />}
+                </div>
+                <div className="flex-grow max-w-md">
+                  <div className="flex items-center gap-4 mb-3">
+                     <div className="flex flex-col items-center gap-1">
+                        <div className="w-10 h-10 bg-black/40 rounded-lg p-1.5 border border-white/10 flex items-center justify-center">
+                          {m.teamALogo ? <img src={m.teamALogo} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" /> : <span className="text-[10px] font-black uppercase">{m.teamA?.[0]}</span>}
+                        </div>
+                        <span className="text-[6px] font-black uppercase text-white/40">{m.teamA}</span>
+                     </div>
+                     <span className="text-white/20 font-black italic">VS</span>
+                     <div className="flex flex-col items-center gap-1">
+                        <div className="w-10 h-10 bg-black/40 rounded-lg p-1.5 border border-white/10 flex items-center justify-center">
+                          {m.teamBLogo ? <img src={m.teamBLogo} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" /> : <span className="text-[10px] font-black uppercase">{m.teamB?.[0]}</span>}
+                        </div>
+                        <span className="text-[6px] font-black uppercase text-white/40">{m.teamB}</span>
+                     </div>
+                     <div className="ml-4">
+                        <h3 className="font-bold text-white uppercase italic tracking-tight">{m.teamA} VS {m.teamB}</h3>
+                        <p className="text-[8px] font-bold text-white/20 uppercase tracking-widest">{m.sport} • {m.tournament}</p>
+                     </div>
+                  </div>
+                  
+                  <p className="text-[8px] font-bold text-white/40 uppercase tracking-widest mb-4">{new Date(m.date).toLocaleString()} • <span className="text-[#CCFF00]">{m.status}</span></p>
+                  <div className="flex items-center gap-6">
+                     <div className="text-center">
+                        <span className="block text-[7px] font-black uppercase text-white/20 mb-1">{m.teamA}</span>
+                        <span className="text-xl font-black text-[#CCFF00]">{m.scoreA}</span>
+                     </div>
+                     <span className="text-white/10 font-bold italic">:</span>
+                     <div className="text-center">
+                        <span className="block text-[7px] font-black uppercase text-white/20 mb-1">{m.teamB}</span>
+                        <span className="text-xl font-black text-[#CCFF00]">{m.scoreB}</span>
+                     </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex-grow max-w-md">
-                <div className="flex items-center gap-4 mb-3">
-                   <div className="flex flex-col items-center gap-1">
-                      <div className="w-10 h-10 bg-black/40 rounded-lg p-1.5 border border-white/10 flex items-center justify-center">
-                        {m.teamALogo ? <img src={m.teamALogo} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" /> : <span className="text-[10px] font-black uppercase">{m.teamA?.[0]}</span>}
-                      </div>
-                      <span className="text-[6px] font-black uppercase text-white/40">{m.teamA}</span>
-                   </div>
-                   <span className="text-white/20 font-black italic">VS</span>
-                   <div className="flex flex-col items-center gap-1">
-                      <div className="w-10 h-10 bg-black/40 rounded-lg p-1.5 border border-white/10 flex items-center justify-center">
-                        {m.teamBLogo ? <img src={m.teamBLogo} alt="" className="w-full h-full object-contain" referrerPolicy="no-referrer" /> : <span className="text-[10px] font-black uppercase">{m.teamB?.[0]}</span>}
-                      </div>
-                      <span className="text-[6px] font-black uppercase text-white/40">{m.teamB}</span>
-                   </div>
-                   <div className="ml-4">
-                      <h3 className="font-bold text-white uppercase italic tracking-tight">{m.teamA} VS {m.teamB}</h3>
-                      <p className="text-[8px] font-bold text-white/20 uppercase tracking-widest">{m.sport} • {m.tournament}</p>
-                   </div>
-                </div>
-                
-                <p className="text-[8px] font-bold text-white/40 uppercase tracking-widest mb-4">{new Date(m.date).toLocaleString()} • <span className="text-[#CCFF00]">{m.status}</span></p>
-                <div className="flex items-center gap-6">
-                   <div className="text-center">
-                      <span className="block text-[7px] font-black uppercase text-white/20 mb-1">{m.teamA}</span>
-                      <span className="text-xl font-black text-[#CCFF00]">{m.scoreA}</span>
-                   </div>
-                   <span className="text-white/10 font-bold italic">:</span>
-                   <div className="text-center">
-                      <span className="block text-[7px] font-black uppercase text-white/20 mb-1">{m.teamB}</span>
-                      <span className="text-xl font-black text-[#CCFF00]">{m.scoreB}</span>
-                   </div>
-                </div>
+              
+              <div className="flex items-center space-x-2">
+                <button onClick={() => setShowCommentaryManager(showCommentaryManager === m.id ? null : m.id)} className={`p-3 rounded-xl transition-all ${showCommentaryManager === m.id ? 'bg-neon-blue text-black' : 'bg-white/5 text-white/20 hover:text-white'}`}>
+                  <MessageSquare size={18} />
+                </button>
+                <button onClick={() => toggleFeatured(m)} className={`p-3 rounded-xl transition-all ${m.isFeatured ? 'bg-[#CCFF00] text-black' : 'bg-white/5 text-white/20 hover:text-white'}`}>
+                  <Star size={18} />
+                </button>
+                <button onClick={() => startEdit(m)} className="p-3 bg-white/5 text-white/20 hover:text-neon-lime hover:bg-white/10 rounded-xl transition-all">
+                  <Edit2 size={18} />
+                </button>
+                <button onClick={() => deleteMatch(m.id)} className="p-3 bg-white/5 text-white/20 hover:text-red-500 hover:bg-white/10 rounded-xl transition-all">
+                  <Trash2 size={18} />
+                </button>
               </div>
             </div>
             
-            <div className="flex items-center space-x-2">
-              <button onClick={() => toggleFeatured(m)} className={`p-3 rounded-xl transition-all ${m.isFeatured ? 'bg-[#CCFF00] text-black' : 'bg-white/5 text-white/20 hover:text-white'}`}>
-                <Star size={18} />
-              </button>
-              <button onClick={() => startEdit(m)} className="p-3 bg-white/5 text-white/20 hover:text-neon-lime hover:bg-white/10 rounded-xl transition-all">
-                <Edit2 size={18} />
-              </button>
-              <button onClick={() => deleteMatch(m.id)} className="p-3 bg-white/5 text-white/20 hover:text-red-500 hover:bg-white/10 rounded-xl transition-all">
-                <Trash2 size={18} />
-              </button>
-            </div>
+            {showCommentaryManager === m.id && (
+              <div className="bg-black/40 rounded-2xl p-6 border border-white/5 animate-in slide-in-from-top duration-300">
+                 <div className="flex items-center gap-2 mb-6">
+                    <div className="w-1.5 h-1.5 bg-neon-blue rounded-full" />
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-white/60">Live Commentary Panel</h4>
+                 </div>
+
+                 <form onSubmit={addCommentary} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                    <input required placeholder="Min (e.g. 45')" value={newComment.minute} onChange={e => setNewComment({...newComment, minute: e.target.value})} className="bg-zinc-900 border border-white/10 rounded-xl p-3 text-xs text-white focus:border-neon-blue" />
+                    <select value={newComment.type} onChange={e => setNewComment({...newComment, type: e.target.value})} className="bg-zinc-900 border border-white/10 rounded-xl p-3 text-xs text-white focus:border-neon-blue">
+                       <option value="info">Info</option>
+                       <option value="goal">Goal</option>
+                       <option value="card">Card</option>
+                       <option value="substitution">Sub</option>
+                    </select>
+                    <input required placeholder="Update text..." value={newComment.text} onChange={e => setNewComment({...newComment, text: e.target.value})} className="md:col-span-2 bg-zinc-900 border border-white/10 rounded-xl p-3 text-xs text-white focus:border-neon-blue" />
+                    <button type="submit" className="md:col-span-4 bg-neon-blue text-black font-black uppercase tracking-widest py-3 rounded-xl hover:bg-white transition-all flex items-center justify-center gap-2 text-[10px]">
+                       <Send size={14} /> Send Commentary Update
+                    </button>
+                 </form>
+
+                 <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                    {liveCommentary.map(item => (
+                      <div key={item.id} className="flex items-center justify-between gap-4 bg-white/5 border border-white/5 rounded-xl p-3 group">
+                         <div className="flex items-center gap-4">
+                            <span className="text-[10px] font-black text-neon-blue w-6">{item.minute}</span>
+                            <span className="text-[9px] font-black uppercase text-white/20 bg-white/5 px-2 py-0.5 rounded">{item.type}</span>
+                            <p className="text-xs text-white/60 font-medium truncate max-w-md">{item.text}</p>
+                         </div>
+                         <button onClick={() => deleteCommentary(item.id)} className="text-white/10 hover:text-red-500 transition-colors">
+                            <Trash2 size={14} />
+                         </button>
+                      </div>
+                    ))}
+                    {liveCommentary.length === 0 && (
+                      <p className="text-center py-8 text-[10px] font-bold text-white/20 uppercase tracking-widest italic">No updates sent yet.</p>
+                    )}
+                 </div>
+              </div>
+            )}
           </div>
         ))}
         {matches.length === 0 && (

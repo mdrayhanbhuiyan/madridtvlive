@@ -59,6 +59,14 @@ export interface Match {
   votesDraw?: number;
 }
 
+export interface CommentaryItem {
+  id: string;
+  minute: string;
+  text: string;
+  type: 'goal' | 'card' | 'info' | 'substitution';
+  timestamp: number;
+}
+
 export interface SliderItem {
   id: string;
   title: string;

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 import { StreamType } from '../../types';
+import { cn } from '../../lib/utils';
 import { AlertCircle, Maximize, Play, Volume2, Pause, Settings, Monitor, VolumeX, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -21,7 +22,39 @@ export default function VideoPlayer({ type, source, autoplay = true }: VideoPlay
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showControls, setShowControls] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPiPActive, setIsPiPActive] = useState(false);
+  const [isPiPSupported, setIsPiPSupported] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    setIsPiPSupported(
+      document.pictureInPictureEnabled && 
+      !videoRef.current?.disablePictureInPicture
+    );
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleEnterPiP = () => setIsPiPActive(true);
+    const handleLeavePiP = () => setIsPiPActive(false);
+    const handleWaiting = () => setIsBuffering(true);
+    const handlePlaying = () => setIsBuffering(false);
+
+    video.addEventListener('enterpictureinpicture', handleEnterPiP);
+    video.addEventListener('leavepictureinpicture', handleLeavePiP);
+    video.addEventListener('waiting', handleWaiting);
+    video.addEventListener('playing', handlePlaying);
+    video.addEventListener('canplay', handlePlaying);
+
+    return () => {
+      video.removeEventListener('enterpictureinpicture', handleEnterPiP);
+      video.removeEventListener('leavepictureinpicture', handleLeavePiP);
+      video.removeEventListener('waiting', handleWaiting);
+      video.removeEventListener('playing', handlePlaying);
+      video.removeEventListener('canplay', handlePlaying);
+    };
+  }, []);
 
   useEffect(() => {
     setError(null);
@@ -143,10 +176,18 @@ export default function VideoPlayer({ type, source, autoplay = true }: VideoPlay
       onMouseMove={handleMouseMove}
       className="relative aspect-video bg-black rounded-2xl overflow-hidden border border-white/10 shadow-2xl group"
     >
-      {isLoading && (
-        <div className="absolute inset-0 z-10 bg-black flex flex-col items-center justify-center">
-          <div className="w-10 h-10 border-4 border-neon-lime border-t-transparent rounded-full animate-spin mb-4" />
-          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Buffering Stream</span>
+      {(isLoading || isBuffering) && (
+        <div className={cn(
+          "absolute inset-0 z-10 flex flex-col items-center justify-center transition-colors duration-300",
+          isLoading ? "bg-black" : "bg-black/40 backdrop-blur-[2px]"
+        )}>
+          <div className="relative">
+            <div className="w-12 h-12 border-4 border-white/10 rounded-full" />
+            <div className="absolute inset-0 w-12 h-12 border-4 border-neon-lime border-t-transparent rounded-full animate-spin" />
+          </div>
+          <span className="mt-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/60 animate-pulse">
+            {isLoading ? "Loading HD Stream" : "Buffering..."}
+          </span>
         </div>
       )}
 
@@ -175,9 +216,20 @@ export default function VideoPlayer({ type, source, autoplay = true }: VideoPlay
                     <span className="w-2 h-2 bg-neon-lime rounded-full mr-2 shadow-[0_0_8px_rgba(204,255,0,0.5)] animate-pulse" />
                     Live HD
                   </div>
-                  <button onClick={togglePiP} className="p-2 bg-white/5 hover:bg-white/20 rounded-full transition-colors text-white">
-                    <Monitor size={16} />
-                  </button>
+                  {isPiPSupported && (
+                    <button 
+                      onClick={togglePiP} 
+                      className={cn(
+                        "p-2 rounded-full transition-all duration-300",
+                        isPiPActive 
+                          ? "bg-neon-lime text-black shadow-[0_0_15px_rgba(204,255,0,0.4)]" 
+                          : "bg-white/5 hover:bg-white/20 text-white"
+                      )}
+                      title={isPiPActive ? "Exit Picture-in-Picture" : "Enable Picture-in-Picture"}
+                    >
+                      <Monitor size={16} />
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between gap-4 pointer-events-auto">

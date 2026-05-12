@@ -148,6 +148,19 @@
     "/widgets/{widgetId}": { "schema": "Widget", "description": "Collection of site widgets" },
     "/ads/{adId}": { "schema": "Ad", "description": "Collection of advertisements" },
     "/sliders/{sliderId}": { "schema": "SliderItem", "description": "Collection of hero slider items" },
+    "/matches/{matchId}/commentary/{commentId}": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "minute": { "type": "string" },
+          "text": { "type": "string" },
+          "type": { "type": "string", "enum": ["goal", "card", "info", "substitution"] },
+          "timestamp": { "type": "number" }
+        },
+        "required": ["minute", "text", "type", "timestamp"]
+      },
+      "description": "Play-by-play commentary for a specific match"
+    },
     "/admins/{adminId}": { "schema": { "type": "object", "properties": { "email": { "type": "string" } } }, "description": "Whitelist of admin UIDs" }
   }
 }
