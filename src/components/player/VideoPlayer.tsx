@@ -161,11 +161,22 @@ export default function VideoPlayer({ type, source, autoplay = true }: VideoPlay
     }, 3000);
   };
 
+  const isUrl = source.trim().startsWith('http') && !source.includes('<');
+
   if (error) {
     return (
-      <div className="aspect-video bg-zinc-900 flex flex-col items-center justify-center border border-white/5 rounded-2xl p-8 text-center">
-        <AlertCircle className="text-red-500 mb-4" size={48} />
-        <p className="text-white/60 font-medium italic">{error}</p>
+      <div className="aspect-video bg-zinc-900 flex flex-col items-center justify-center border border-white/5 rounded-2xl p-8 text-center gap-4">
+        <AlertCircle className="text-red-500" size={48} />
+        <div className="space-y-2">
+          <p className="text-white font-bold uppercase tracking-tight">Playback Error</p>
+          <p className="text-white/60 text-xs font-medium italic">{error}</p>
+        </div>
+        <button 
+          onClick={() => window.open(source, '_blank')}
+          className="mt-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-white/40 transition-all border border-white/5"
+        >
+          Open Stream in New Tab
+        </button>
       </div>
     );
   }
@@ -275,17 +286,26 @@ export default function VideoPlayer({ type, source, autoplay = true }: VideoPlay
       {type === StreamType.YOUTUBE && (
         <iframe
           src={`https://www.youtube.com/embed/${source}${autoplay ? '?autoplay=1' : ''}`}
-          className="w-full h-full"
+          className="w-full h-full border-0"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
         />
       )}
 
       {type === StreamType.IFRAME && (
-        <div 
-          className="w-full h-full"
-          dangerouslySetInnerHTML={{ __html: source }}
-        />
+        isUrl ? (
+          <iframe 
+            src={source} 
+            className="w-full h-full border-0" 
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+            allowFullScreen
+          />
+        ) : (
+          <div 
+            className="w-full h-full [&>iframe]:w-full [&>iframe]:h-full [&>iframe]:border-0"
+            dangerouslySetInnerHTML={{ __html: source }}
+          />
+        )
       )}
     </div>
   );

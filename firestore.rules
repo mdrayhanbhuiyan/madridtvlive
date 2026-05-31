@@ -31,6 +31,12 @@ service cloud.firestore {
         allow read: if true;
         allow write: if isAdmin();
       }
+
+      match /chat/{messageId} {
+        allow read: if true;
+        allow create: if request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 300 && request.resource.data.username.size() > 0;
+        allow update, delete: if isAdmin();
+      }
     }
     match /highlights/{id} {
       allow read: if true;
@@ -55,6 +61,15 @@ service cloud.firestore {
     match /sliders/{id} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+    match /navigation/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /subscribers/{id} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update, delete: if isAdmin();
     }
     match /admins/{id} {
       allow read: if isSignedIn();

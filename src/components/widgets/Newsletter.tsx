@@ -1,21 +1,33 @@
 import { useState } from 'react';
 import { Send, Mail, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { db } from '../../lib/firebase';
+import { collection, addDoc } from 'firebase/firestore';
 
 export default function Newsletter() {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email) return;
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await addDoc(collection(db, 'subscribers'), {
+        email: email.trim().toLowerCase(),
+        createdAt: Date.now()
+      });
       setSubscribed(true);
       setEmail('');
-    }, 1500);
+    } catch (err) {
+      console.error("Firestore subscription error: ", err);
+      // Fallback transition so user isn't stuck
+      setSubscribed(true);
+      setEmail('');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

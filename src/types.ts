@@ -132,3 +132,11 @@ export interface SiteAd {
   placement: 'Header' | 'Sidebar' | 'Player' | 'Footer';
   code: string;
 }
+
+export interface NavigationItem {
+  id: string;
+  name: string;
+  path: string;
+  order: number;
+  submenu?: { name: string; path: string; }[];
+}

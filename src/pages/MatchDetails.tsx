@@ -2,16 +2,17 @@ import { useParams, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
 import { MatchStatus, Sport, CommentaryItem } from '../types';
-import { Trophy, Clock, Users, MessageSquare, BarChart3, ChevronLeft, Calendar, BrainCircuit, Vote as VoteIcon, Send } from 'lucide-react';
+import { Trophy, Clock, Users, MessageSquare, MessageCircle, BarChart3, ChevronLeft, Calendar, BrainCircuit, Vote as VoteIcon, Send } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { doc, updateDoc, increment, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import MatchChat from '../components/match/MatchChat';
 
 export default function MatchDetails() {
   const { id } = useParams<{ id: string }>();
   const { matches, loading } = useData();
-  const [activeTab, setActiveTab] = useState<'stats' | 'lineups' | 'commentary' | 'predictor'>('predictor');
+  const [activeTab, setActiveTab] = useState<'stats' | 'lineups' | 'commentary' | 'predictor' | 'chat'>('predictor');
   const [hasVoted, setHasVoted] = useState(false);
   const [liveCommentary, setLiveCommentary] = useState<CommentaryItem[]>([]);
   const match = matches.find(m => m.id === id);
@@ -126,10 +127,11 @@ export default function MatchDetails() {
       <div className="max-w-7xl mx-auto px-6 -mt-12 relative z-20">
          <div className="bg-[#0A0A0A] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col md:flex-row">
             {/* Sidebar Navigation */}
-            <div className="w-full md:w-64 border-r border-white/10 p-4 space-y-2">
+            <div className="w-full md:w-64 border-r border-white/10 p-4 space-y-2 font-black">
                {[
                  { id: 'predictor', label: 'Predictor', icon: VoteIcon, color: 'text-[#CCFF00]' },
                  { id: 'commentary', label: 'Commentary', icon: MessageSquare, color: 'text-neon-blue' },
+                 { id: 'chat', label: 'Live Chat', icon: MessageCircle, color: 'text-[#CCFF00]' },
                  { id: 'stats', label: 'Match Stats', icon: BarChart3, color: 'text-neon-pink' },
                  { id: 'lineups', label: 'Lineups', icon: Users, color: 'text-neon-purple' }
                ].map(tab => (
@@ -323,6 +325,26 @@ export default function MatchDetails() {
                           </div>
                         )}
                       </div>
+                    </motion.div>
+                  )}
+
+                  {activeTab === 'chat' && (
+                    <motion.div
+                      key="chat"
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      className="space-y-6"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                         <h3 className="text-sm font-black uppercase tracking-widest text-neon-lime">Match Fan Chat</h3>
+                         <div className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Real-time sync</span>
+                         </div>
+                      </div>
+                      
+                      <MatchChat matchId={match.id} teamA={match.teamA} teamB={match.teamB} />
                     </motion.div>
                   )}
 

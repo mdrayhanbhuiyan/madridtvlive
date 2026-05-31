@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Channel, Match, Highlight, NewsPost, SiteWidget, SiteAd, MatchStatus, SliderItem } from '../types';
+import { Channel, Match, Highlight, NewsPost, SiteWidget, SiteAd, MatchStatus, SliderItem, NavigationItem } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/error-handler';
 import { showMatchLiveNotification } from '../lib/notifications';
 
@@ -13,6 +13,7 @@ interface DataContextType {
   widgets: SiteWidget[];
   ads: SiteAd[];
   sliders: SliderItem[];
+  navigation: NavigationItem[];
   loading: boolean;
 }
 
@@ -26,6 +27,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [widgets, setWidgets] = useState<SiteWidget[]>([]);
   const [ads, setAds] = useState<SiteAd[]>([]);
   const [sliders, setSliders] = useState<SliderItem[]>([]);
+  const [navigation, setNavigation] = useState<NavigationItem[]>([]);
   const [loading, setLoading] = useState(true);
   
   const prevMatchStatuses = useRef<Record<string, MatchStatus>>({});
@@ -70,6 +72,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setSliders(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SliderItem)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'sliders'));
 
+    const unsubNavigation = onSnapshot(query(collection(db, 'navigation'), orderBy('order', 'asc')), (snap) => {
+      setNavigation(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as NavigationItem)));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'navigation'));
+
     setLoading(false);
 
     return () => {
@@ -80,11 +86,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       unsubWidgets();
       unsubAds();
       unsubSliders();
+      unsubNavigation();
     };
   }, []);
 
   return (
-    <DataContext.Provider value={{ channels, matches, highlights, news, widgets, ads, sliders, loading }}>
+    <DataContext.Provider value={{ channels, matches, highlights, news, widgets, ads, sliders, navigation, loading }}>
       {children}
     </DataContext.Provider>
   );

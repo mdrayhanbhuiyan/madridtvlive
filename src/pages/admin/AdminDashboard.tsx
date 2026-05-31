@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { 
   Tv, Trophy, Award, Newspaper, Layout, DollarSign, Settings, 
-  LogOut, Plus, Edit2, Trash2, CheckCircle, XCircle, Database, Brain, Search
+  LogOut, Plus, Edit2, Trash2, CheckCircle, XCircle, Database, Brain, Search, Menu, Mail
 } from 'lucide-react';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -17,6 +17,8 @@ import NewsAdManager from './NewsAdManager';
 import WidgetManager from './WidgetManager';
 import AdManager from './AdManager';
 import SliderManager from './SliderManager';
+import NavigationManager from './NavigationManager';
+import NewsletterManager from './NewsletterManager';
 
 export default function AdminDashboard() {
   const { user, isAdmin, loading, logout } = useAuth();
@@ -35,6 +37,8 @@ export default function AdminDashboard() {
     { id: 'news-ads', name: 'News Ads', icon: DollarSign },
     { id: 'widgets', name: 'Widgets', icon: Layout },
     { id: 'ads', name: 'Platform Ads', icon: DollarSign },
+    { id: 'navigation', name: 'Navigation', icon: Menu },
+    { id: 'newsletter', name: 'Newsletter', icon: Mail },
   ];
 
   const seedData = async () => {
@@ -184,6 +188,8 @@ export default function AdminDashboard() {
           {activeTab === 'news-ads' && <NewsAdManager />}
           {activeTab === 'widgets' && <WidgetManager />}
           {activeTab === 'ads' && <AdManager />}
+          {activeTab === 'navigation' && <NavigationManager />}
+          {activeTab === 'newsletter' && <NewsletterManager />}
         </div>
       </main>
     </div>

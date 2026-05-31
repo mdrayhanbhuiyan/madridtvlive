@@ -136,8 +136,13 @@ export default function ChannelManager() {
               value={formData.source}
               onChange={(e) => setFormData({...formData, source: e.target.value})}
               className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white focus:border-neon-lime focus:ring-0" 
-              placeholder="m3u8 url or youtube id" 
+              placeholder={formData.type === StreamType.YOUTUBE ? "YouTube Video ID" : "URL or iframe code"} 
             />
+            {formData.type === StreamType.IFRAME && (
+              <p className="text-[9px] font-medium text-white/20 ml-2 italic">
+                Note: Some sites block being loaded in the preview. Use the "New Tab" button in player if it fails.
+              </p>
+            )}
           </div>
           <div className="md:col-span-2">
             <button type="submit" className="w-full bg-neon-lime text-black font-black uppercase tracking-widest py-4 rounded-2xl hover:bg-white transition-all">

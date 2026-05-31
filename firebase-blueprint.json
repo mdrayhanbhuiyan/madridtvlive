@@ -137,6 +137,38 @@
         "code": { "type": "string" }
       },
       "required": ["name", "placement", "code"]
+    },
+    "NavigationItem": {
+      "title": "Navigation Menu",
+      "description": "Customizable main navigation menu items",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "path": { "type": "string" },
+        "order": { "type": "number" },
+        "submenu": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "path": { "type": "string" }
+            },
+            "required": ["name", "path"]
+          }
+        }
+      },
+      "required": ["name", "path", "order"]
+    },
+    "Subscriber": {
+      "title": "Newsletter Subscriber",
+      "description": "Subscriber emails for newsletter",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["email", "createdAt"]
     }
   },
   "firestore": {
@@ -148,6 +180,8 @@
     "/widgets/{widgetId}": { "schema": "Widget", "description": "Collection of site widgets" },
     "/ads/{adId}": { "schema": "Ad", "description": "Collection of advertisements" },
     "/sliders/{sliderId}": { "schema": "SliderItem", "description": "Collection of hero slider items" },
+    "/navigation/{navId}": { "schema": "NavigationItem", "description": "Collection of navigation menu items" },
+    "/subscribers/{subId}": { "schema": "Subscriber", "description": "Collection of newsletter subscribers" },
     "/matches/{matchId}/commentary/{commentId}": {
       "schema": {
         "type": "object",
@@ -160,6 +194,21 @@
         "required": ["minute", "text", "type", "timestamp"]
       },
       "description": "Play-by-play commentary for a specific match"
+    },
+    "/matches/{matchId}/chat/{messageId}": {
+      "schema": {
+        "type": "object",
+        "properties": {
+          "username": { "type": "string" },
+          "text": { "type": "string" },
+          "userId": { "type": "string" },
+          "userAvatar": { "type": "string" },
+          "timestamp": { "type": "number" },
+          "isAdmin": { "type": "boolean" }
+        },
+        "required": ["username", "text", "userId", "timestamp"]
+      },
+      "description": "Real-time fan discussion message for a specific match"
     },
     "/admins/{adminId}": { "schema": { "type": "object", "properties": { "email": { "type": "string" } } }, "description": "Whitelist of admin UIDs" }
   }
